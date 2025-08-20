@@ -1,0 +1,49 @@
+Western Electric Rules (Most Common)
+Rule 1: Single Point Outside Control Limits
+
+Any single data point falls outside the upper or lower control limits (UCL/LCL)
+This is the most basic rule indicating an outlier
+
+Rule 2: Two Out of Three Consecutive Points
+
+Two out of three consecutive points fall in Zone A (between 2-3 sigma from centerline)
+Can be on the same side or opposite sides of the centerline
+
+Rule 3: Four Out of Five Consecutive Points
+
+Four out of five consecutive points fall in Zone B or beyond (beyond 1 sigma from centerline)
+All must be on the same side of the centerline
+
+Rule 4: Eight Consecutive Points on Same Side
+
+Eight or more consecutive points fall on the same side of the centerline
+Indicates a sustained shift in the process
+
+Additional Common Rules
+Rule 5: Increasing or Decreasing Trend
+
+Six or more consecutive points steadily increasing or decreasing
+Indicates systematic drift in the process
+
+Rule 6: Oscillating Pattern
+
+Fourteen consecutive points alternating up and down
+Suggests over-control or systematic cycling
+
+Rule 7: Fifteen Points Near Centerline
+
+Fifteen consecutive points within Zone C (within 1 sigma of centerline)
+May indicate stratified sampling or reduced variation
+
+Rule 8: Eight Points Away from Centerline
+
+Eight consecutive points with none in Zone C
+Suggests mixture of two populations or bi-modal distribution
+
+Zone Definitions
+
+Zone A: 2-3 sigma from centerline
+Zone B: 1-2 sigma from centerline
+Zone C: 0-1 sigma from centerline
+
+These rules help distinguish between common cause variation (normal process variation) and special cause variation (assignable causes that require investigation). Most software implementations use Rules 1-4 as the standard set, with the others available as options.
