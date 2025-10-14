@@ -1,49 +1,62 @@
-Western Electric Rules (Most Common)
-Rule 1: Single Point Outside Control Limits
+# Load required library
+library(stringr)
 
-Any single data point falls outside the upper or lower control limits (UCL/LCL)
-This is the most basic rule indicating an outlier
+# Function to extract value sets from a CQL file
+extract_valuesets <- function(file_path) {
+  # Read the file
+  cql_content <- readLines(file_path, warn = FALSE)
+  cql_text <- paste(cql_content, collapse = "\n")
+  
+  # Regular expression to match valueset definitions
+  # Pattern: valueset "Name": 'urn:oid:...'
+  pattern <- 'valueset\\s+"([^"]+)":\\s+\'(urn:oid:[^\']+)\''
+  
+  # Extract all matches
+  matches <- str_match_all(cql_text, pattern)[[1]]
+  
+  # Create data frame if matches found
+  if (nrow(matches) > 0) {
+    df <- data.frame(
+      valueset_name = matches[, 2],
+      oid = matches[, 3],
+      file = basename(file_path),
+      stringsAsFactors = FALSE
+    )
+    return(df)
+  } else {
+    return(data.frame(
+      valueset_name = character(0),
+      oid = character(0),
+      file = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+}
 
-Rule 2: Two Out of Three Consecutive Points
+# Extract from both files
+file1 <- "~/Desktop/CMS1154ScreeningPrediabetes-1.0.000.cql"
+file2 <- "~/Desktop/CQMCommonQDM-9.0.000.cql"
 
-Two out of three consecutive points fall in Zone A (between 2-3 sigma from centerline)
-Can be on the same side or opposite sides of the centerline
+valuesets1 <- extract_valuesets(file1)
+valuesets2 <- extract_valuesets(file2)
 
-Rule 3: Four Out of Five Consecutive Points
+# Combine results
+all_valuesets <- rbind(valuesets1, valuesets2)
 
-Four out of five consecutive points fall in Zone B or beyond (beyond 1 sigma from centerline)
-All must be on the same side of the centerline
+# Display results
+cat("Total value sets found:", nrow(all_valuesets), "\n\n")
+print(all_valuesets)
 
-Rule 4: Eight Consecutive Points on Same Side
+# Optional: Export to CSV
+write.csv(all_valuesets, "valueset_oids.csv", row.names = FALSE)
+cat("\nResults exported to valueset_oids.csv\n")
 
-Eight or more consecutive points fall on the same side of the centerline
-Indicates a sustained shift in the process
+# Optional: Create a summary by file
+cat("\n--- Summary by File ---\n")
+table(all_valuesets$file)
 
-Additional Common Rules
-Rule 5: Increasing or Decreasing Trend
+# Optional: Extract just the OID numbers (without 'urn:oid:' prefix)
+all_valuesets$oid_number <- str_replace(all_valuesets$oid, "urn:oid:", "")
 
-Six or more consecutive points steadily increasing or decreasing
-Indicates systematic drift in the process
-
-Rule 6: Oscillating Pattern
-
-Fourteen consecutive points alternating up and down
-Suggests over-control or systematic cycling
-
-Rule 7: Fifteen Points Near Centerline
-
-Fifteen consecutive points within Zone C (within 1 sigma of centerline)
-May indicate stratified sampling or reduced variation
-
-Rule 8: Eight Points Away from Centerline
-
-Eight consecutive points with none in Zone C
-Suggests mixture of two populations or bi-modal distribution
-
-Zone Definitions
-
-Zone A: 2-3 sigma from centerline
-Zone B: 1-2 sigma from centerline
-Zone C: 0-1 sigma from centerline
-
-These rules help distinguish between common cause variation (normal process variation) and special cause variation (assignable causes that require investigation). Most software implementations use Rules 1-4 as the standard set, with the others available as options.
+# Display with clean OID numbers
+print(all_valuesets[, c("valueset_name", "oid_number", "file")])
