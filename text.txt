@@ -1,1 +1,364 @@
 
+#!/usr/bin/env python3
+"""
+To-Do Focus Tool
+----------------
+Parse TO_DO.md with due dates and priorities, show what needs attention.
+
+Supported Formats:
+    - [ ] Task description due:2026-01-25 p:high
+    - [ ] Task description @due(2026-01-25) !1
+    - [ ] (A) Task description due:tomorrow
+
+Priority formats: p:high/med/low, p:1/2/3, !1/!2/!3, (A)/(B)/(C)
+Date formats: due:YYYY-MM-DD, @due(YYYY-MM-DD), due:today, due:tomorrow
+
+Usage:
+    python todo_focus.py                     # Default: ./TO_DO.md
+    python todo_focus.py ~/notes/TO_DO.md
+    python todo_focus.py --overdue           # Only show overdue
+    python todo_focus.py --today             # Due today or overdue
+    python todo_focus.py --week              # Due within 7 days
+"""
+
+import argparse
+import re
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from pathlib import Path
+from enum import IntEnum
+
+
+class Priority(IntEnum):
+    CRITICAL = 0
+    HIGH = 1
+    MEDIUM = 2
+    LOW = 3
+    NONE = 4
+
+
+PRIORITY_DISPLAY = {
+    Priority.CRITICAL: ("CRIT", "\033[91m"),   # Red
+    Priority.HIGH: ("HIGH", "\033[93m"),        # Yellow
+    Priority.MEDIUM: ("MED", "\033[94m"),       # Blue
+    Priority.LOW: ("LOW", "\033[90m"),          # Gray
+    Priority.NONE: ("", "\033[0m"),             # Default
+}
+
+
+@dataclass
+class TodoItem:
+    raw_line: str
+    line_num: int
+    text: str
+    done: bool
+    priority: Priority
+    due_date: datetime | None
+    tags: list[str]
+
+    @property
+    def days_until_due(self) -> int | None:
+        if self.due_date is None:
+            return None
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        due = self.due_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        return (due - today).days
+
+    @property
+    def is_overdue(self) -> bool:
+        days = self.days_until_due
+        return days is not None and days < 0
+
+    @property
+    def is_due_today(self) -> bool:
+        return self.days_until_due == 0
+
+    @property
+    def is_due_soon(self) -> bool:
+        days = self.days_until_due
+        return days is not None and 0 < days <= 3
+
+    def sort_key(self) -> tuple:
+        """Sort by: overdue first, then due date, then priority."""
+        days = self.days_until_due
+        if days is None:
+            days = 9999  # No due date = sort last
+        return (not self.is_overdue, days, self.priority)
+
+
+def parse_date(text: str) -> datetime | None:
+    """Extract due date from various formats."""
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # due:YYYY-MM-DD or @due(YYYY-MM-DD)
+    patterns = [
+        r'due:(\d{4}-\d{2}-\d{2})',
+        r'@due\((\d{4}-\d{2}-\d{2})\)',
+        r'\[due:\s*(\d{4}-\d{2}-\d{2})\]',
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            try:
+                return datetime.strptime(match.group(1), "%Y-%m-%d")
+            except ValueError:
+                continue
+
+    # Relative dates
+    if re.search(r'due:today', text, re.IGNORECASE):
+        return today
+    if re.search(r'due:tomorrow', text, re.IGNORECASE):
+        return today + timedelta(days=1)
+
+    # due:monday, due:friday, etc.
+    days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    for i, day in enumerate(days):
+        if re.search(rf'due:{day}', text, re.IGNORECASE):
+            current_day = today.weekday()
+            days_ahead = i - current_day
+            if days_ahead <= 0:
+                days_ahead += 7
+            return today + timedelta(days=days_ahead)
+
+    return None
+
+
+def parse_priority(text: str) -> Priority:
+    """Extract priority from various formats."""
+    # (A), (B), (C), (D) format (todo.txt style)
+    match = re.search(r'^\s*-\s*\[[x ]\]\s*\(([A-D])\)', text, re.IGNORECASE)
+    if match:
+        level = match.group(1).upper()
+        return {"A": Priority.CRITICAL, "B": Priority.HIGH, "C": Priority.MEDIUM, "D": Priority.LOW}[level]
+
+    # p:critical, p:high, p:medium, p:low
+    if re.search(r'p:crit(ical)?', text, re.IGNORECASE):
+        return Priority.CRITICAL
+    if re.search(r'p:high', text, re.IGNORECASE):
+        return Priority.HIGH
+    if re.search(r'p:(med(ium)?|normal)', text, re.IGNORECASE):
+        return Priority.MEDIUM
+    if re.search(r'p:low', text, re.IGNORECASE):
+        return Priority.LOW
+
+    # p:1, p:2, p:3, p:4 or !1, !2, !3, !4
+    if re.search(r'(p:|!)(0|1)\b', text):
+        return Priority.CRITICAL
+    if re.search(r'(p:|!)(2)\b', text):
+        return Priority.HIGH
+    if re.search(r'(p:|!)(3)\b', text):
+        return Priority.MEDIUM
+    if re.search(r'(p:|!)(4)\b', text):
+        return Priority.LOW
+
+    return Priority.NONE
+
+
+def parse_tags(text: str) -> list[str]:
+    """Extract #tags and @contexts from text."""
+    tags = re.findall(r'(?<!\S)[#@]([a-zA-Z][a-zA-Z0-9_-]*)', text)
+    return tags
+
+
+def clean_text(text: str) -> str:
+    """Remove metadata from task text for cleaner display."""
+    # Remove checkbox
+    text = re.sub(r'^\s*-\s*\[[x ]\]\s*', '', text)
+    # Remove priority markers
+    text = re.sub(r'\(([A-D])\)\s*', '', text, flags=re.IGNORECASE)
+    # Remove due dates
+    text = re.sub(r'due:\S+', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'@due\([^)]+\)', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\[due:[^\]]+\]', '', text, flags=re.IGNORECASE)
+    # Remove priority tags
+    text = re.sub(r'p:(critical|high|med(ium)?|low|[0-4])', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'![0-4]', '', text)
+    # Clean up whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+def parse_todo_file(filepath: Path) -> list[TodoItem]:
+    """Parse a TO_DO.md file and extract all todo items."""
+    items = []
+
+    try:
+        content = filepath.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        print(f"File not found: {filepath}")
+        return []
+
+    for i, line in enumerate(content.splitlines(), 1):
+        # Match lines with checkboxes: - [ ] or - [x]
+        checkbox_match = re.match(r'^\s*-\s*\[([x ])\]', line, re.IGNORECASE)
+        if not checkbox_match:
+            continue
+
+        done = checkbox_match.group(1).lower() == 'x'
+
+        item = TodoItem(
+            raw_line=line,
+            line_num=i,
+            text=clean_text(line),
+            done=done,
+            priority=parse_priority(line),
+            due_date=parse_date(line),
+            tags=parse_tags(line),
+        )
+        items.append(item)
+
+    return items
+
+
+def format_due_date(item: TodoItem) -> str:
+    """Format due date with relative description."""
+    if item.due_date is None:
+        return ""
+
+    days = item.days_until_due
+    date_str = item.due_date.strftime("%m/%d")
+
+    if days < 0:
+        return f"\033[91mOVERDUE ({abs(days)}d)\033[0m"
+    elif days == 0:
+        return f"\033[93mTODAY\033[0m"
+    elif days == 1:
+        return f"\033[93mtomorrow\033[0m"
+    elif days <= 7:
+        return f"\033[94m{days}d ({date_str})\033[0m"
+    else:
+        return f"\033[90m{date_str}\033[0m"
+
+
+def print_item(item: TodoItem, show_line_num: bool = False):
+    """Print a single todo item."""
+    # Priority indicator
+    pri_label, pri_color = PRIORITY_DISPLAY[item.priority]
+    if pri_label:
+        priority_str = f"{pri_color}[{pri_label}]\033[0m "
+    else:
+        priority_str = ""
+
+    # Due date
+    due_str = format_due_date(item)
+    if due_str:
+        due_str = f" {due_str}"
+
+    # Line number
+    line_str = f"\033[90m:{item.line_num:<3}\033[0m " if show_line_num else ""
+
+    # Task text (truncate if too long)
+    text = item.text
+    if len(text) > 60:
+        text = text[:57] + "..."
+
+    print(f"  {line_str}{priority_str}{text}{due_str}")
+
+
+def print_section(title: str, items: list[TodoItem], show_line_num: bool = False):
+    """Print a section of todos."""
+    if not items:
+        return
+
+    print(f"\n\033[1m{title}\033[0m")
+    print("-" * 50)
+    for item in items:
+        print_item(item, show_line_num)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Parse TO_DO.md and show prioritized tasks",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Supported Formats in your TO_DO.md:
+  - [ ] Task text due:2026-01-25 p:high
+  - [ ] Task text @due(2026-01-25) !1
+  - [ ] (A) High priority task due:tomorrow
+  - [ ] Task with #project @context tags
+
+Priority: p:critical, p:high, p:med, p:low, p:1-4, !1-4, (A)-(D)
+Dates: due:YYYY-MM-DD, due:today, due:tomorrow, due:monday
+
+Examples:
+  %(prog)s                      Show focus items from ./TO_DO.md
+  %(prog)s ~/notes/TO_DO.md     Specify file path
+  %(prog)s --all                Show all incomplete tasks
+  %(prog)s --overdue            Only overdue items
+  %(prog)s --week               Due within 7 days
+        """,
+    )
+    parser.add_argument("file", nargs="?", default="TO_DO.md", help="Path to TO_DO.md")
+    parser.add_argument("--all", "-a", action="store_true", help="Show all incomplete tasks")
+    parser.add_argument("--overdue", action="store_true", help="Only show overdue tasks")
+    parser.add_argument("--today", action="store_true", help="Show due today + overdue")
+    parser.add_argument("--week", action="store_true", help="Show due within 7 days")
+    parser.add_argument("--done", action="store_true", help="Include completed tasks")
+    parser.add_argument("--lines", "-l", action="store_true", help="Show line numbers")
+    parser.add_argument("--tag", "-t", help="Filter by tag")
+
+    args = parser.parse_args()
+
+    filepath = Path(args.file).expanduser().resolve()
+    items = parse_todo_file(filepath)
+
+    if not items:
+        print("No todo items found.")
+        return
+
+    # Filter out completed unless requested
+    if not args.done:
+        items = [i for i in items if not i.done]
+
+    # Filter by tag
+    if args.tag:
+        tag = args.tag.lstrip("#@")
+        items = [i for i in items if tag.lower() in [t.lower() for t in i.tags]]
+
+    # Apply date filters
+    if args.overdue:
+        items = [i for i in items if i.is_overdue]
+    elif args.today:
+        items = [i for i in items if i.is_overdue or i.is_due_today]
+    elif args.week:
+        items = [i for i in items if i.days_until_due is not None and i.days_until_due <= 7]
+
+    if not items:
+        print("No matching tasks.")
+        return
+
+    # Sort all items
+    items.sort(key=lambda x: x.sort_key())
+
+    if args.all or args.overdue or args.today or args.week or args.tag:
+        # Simple list for filtered views
+        print(f"\n\033[1m{len(items)} tasks\033[0m")
+        print("=" * 50)
+        for item in items:
+            print_item(item, args.lines)
+        print()
+    else:
+        # Default: categorized focus view
+        print("\n" + "=" * 50)
+        print("  FOCUS: What needs your attention")
+        print("=" * 50)
+
+        overdue = [i for i in items if i.is_overdue]
+        today = [i for i in items if i.is_due_today]
+        soon = [i for i in items if i.is_due_soon]
+        high_pri = [i for i in items if i.priority <= Priority.HIGH
+                    and not i.is_overdue and not i.is_due_today and not i.is_due_soon]
+
+        print_section("OVERDUE", overdue, args.lines)
+        print_section("DUE TODAY", today, args.lines)
+        print_section("DUE SOON (1-3 days)", soon, args.lines)
+        print_section("HIGH PRIORITY", high_pri[:5], args.lines)
+
+        # Summary
+        remaining = len(items) - len(overdue) - len(today) - len(soon) - min(len(high_pri), 5)
+        print(f"\n\033[90m+ {remaining} more tasks (use --all to see)\033[0m\n")
+
+
+if __name__ == "__main__":
+    main()
