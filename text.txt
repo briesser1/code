@@ -1,1 +1,427 @@
 
+#!/usr/bin/env python3
+"""
+Knowledge Graph Visualization
+-----------------------------
+Build and visualize connections between your notes.
+
+Usage:
+    python knowledge_graph.py [folder] [options]
+
+Examples:
+    python knowledge_graph.py ~/notes                    # Generate graph
+    python knowledge_graph.py ~/notes --output graph.html
+    python knowledge_graph.py ~/notes --min-links 2     # Only connected notes
+    python knowledge_graph.py ~/notes --json            # Export as JSON
+
+Requirements:
+    pip install networkx pyvis
+"""
+
+import argparse
+import json
+import re
+from collections import defaultdict
+from pathlib import Path
+
+try:
+    import networkx as nx
+    HAS_NETWORKX = True
+except ImportError:
+    HAS_NETWORKX = False
+
+try:
+    from pyvis.network import Network
+    HAS_PYVIS = True
+except ImportError:
+    HAS_PYVIS = False
+
+
+def extract_links(content: str) -> list[str]:
+    """Extract wiki-style [[links]] and markdown links from content."""
+    links = []
+
+    # Wiki-style: [[link]] or [[link|display]]
+    wiki_links = re.findall(r'\[\[([^\]|]+)(?:\|[^\]]+)?\]\]', content)
+    links.extend(wiki_links)
+
+    # Markdown: [text](link.md)
+    md_links = re.findall(r'\[([^\]]+)\]\(([^)]+\.md)\)', content)
+    links.extend(Path(link).stem for _, link in md_links)
+
+    return links
+
+
+def extract_tags(content: str) -> list[str]:
+    """Extract #tags from content."""
+    return re.findall(r'(?<!\S)#([a-zA-Z][a-zA-Z0-9_-]*)', content)
+
+
+def build_graph(
+    folder: str,
+    extensions: tuple = (".md",),
+    include_tags: bool = False,
+) -> tuple[dict, dict, dict]:
+    """
+    Build a graph of note connections.
+
+    Returns:
+        nodes: dict of node_id -> {label, type, word_count, ...}
+        edges: list of (source, target, weight)
+        stats: dict with graph statistics
+    """
+    folder_path = Path(folder).expanduser().resolve()
+
+    nodes = {}
+    edges = []
+    backlinks = defaultdict(list)
+
+    # First pass: collect all notes
+    for ext in extensions:
+        for filepath in folder_path.rglob(f"*{ext}"):
+            try:
+                content = filepath.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, PermissionError):
+                continue
+
+            node_id = filepath.stem
+            word_count = len(content.split())
+            links = extract_links(content)
+            tags = extract_tags(content)
+
+            nodes[node_id] = {
+                "label": node_id,
+                "type": "note",
+                "path": str(filepath),
+                "word_count": word_count,
+                "link_count": len(links),
+                "tags": tags,
+            }
+
+            # Track outgoing links
+            for link in links:
+                link_stem = Path(link).stem
+                edges.append((node_id, link_stem))
+                backlinks[link_stem].append(node_id)
+
+            # Optionally add tags as nodes
+            if include_tags:
+                for tag in tags:
+                    tag_id = f"tag:{tag}"
+                    if tag_id not in nodes:
+                        nodes[tag_id] = {
+                            "label": f"#{tag}",
+                            "type": "tag",
+                            "path": None,
+                            "word_count": 0,
+                            "link_count": 0,
+                            "tags": [],
+                        }
+                    edges.append((node_id, tag_id))
+
+    # Add backlink counts
+    for node_id in nodes:
+        nodes[node_id]["backlink_count"] = len(backlinks.get(node_id, []))
+
+    stats = {
+        "total_nodes": len(nodes),
+        "total_edges": len(edges),
+        "notes": sum(1 for n in nodes.values() if n["type"] == "note"),
+        "tags": sum(1 for n in nodes.values() if n["type"] == "tag"),
+    }
+
+    return nodes, edges, stats
+
+
+def filter_graph(nodes: dict, edges: list, min_links: int = 0) -> tuple[dict, list]:
+    """Filter graph to only include nodes with minimum connections."""
+    if min_links == 0:
+        return nodes, edges
+
+    # Count connections per node
+    connections = defaultdict(int)
+    for source, target in edges:
+        connections[source] += 1
+        connections[target] += 1
+
+    # Filter nodes
+    filtered_nodes = {
+        k: v for k, v in nodes.items()
+        if connections[k] >= min_links
+    }
+
+    # Filter edges
+    filtered_edges = [
+        (s, t) for s, t in edges
+        if s in filtered_nodes and t in filtered_nodes
+    ]
+
+    return filtered_nodes, filtered_edges
+
+
+def create_networkx_graph(nodes: dict, edges: list):
+    """Create a NetworkX graph object."""
+    if not HAS_NETWORKX:
+        raise ImportError("networkx is required: pip install networkx")
+
+    G = nx.DiGraph()
+
+    for node_id, data in nodes.items():
+        G.add_node(node_id, **data)
+
+    for source, target in edges:
+        if source in nodes and target in nodes:
+            G.add_edge(source, target)
+
+    return G
+
+
+def create_pyvis_visualization(
+    nodes: dict,
+    edges: list,
+    output_path: str = "knowledge_graph.html",
+    height: str = "800px",
+    width: str = "100%",
+) -> str:
+    """Create an interactive HTML visualization with PyVis."""
+    if not HAS_PYVIS:
+        raise ImportError("pyvis is required: pip install pyvis")
+
+    net = Network(
+        height=height,
+        width=width,
+        directed=True,
+        bgcolor="#1a1a2e",
+        font_color="#ffffff",
+    )
+
+    # Configure physics
+    net.set_options("""
+    {
+        "nodes": {
+            "font": {"size": 14, "face": "arial"}
+        },
+        "edges": {
+            "arrows": {"to": {"enabled": true, "scaleFactor": 0.5}},
+            "color": {"color": "#4a4a6a", "highlight": "#7c7cff"},
+            "smooth": {"type": "continuous"}
+        },
+        "physics": {
+            "forceAtlas2Based": {
+                "gravitationalConstant": -50,
+                "centralGravity": 0.01,
+                "springLength": 100,
+                "springConstant": 0.08
+            },
+            "minVelocity": 0.75,
+            "solver": "forceAtlas2Based"
+        },
+        "interaction": {
+            "hover": true,
+            "navigationButtons": true,
+            "keyboard": true
+        }
+    }
+    """)
+
+    # Add nodes with styling based on type and metrics
+    for node_id, data in nodes.items():
+        if data["type"] == "tag":
+            color = "#ff6b6b"
+            size = 15
+            shape = "diamond"
+        else:
+            # Size based on word count (log scale)
+            word_count = data.get("word_count", 0)
+            size = min(10 + (word_count ** 0.4), 50)
+
+            # Color based on backlinks
+            backlinks = data.get("backlink_count", 0)
+            if backlinks >= 5:
+                color = "#4ecdc4"  # Hub note
+            elif backlinks >= 2:
+                color = "#45b7d1"  # Connected
+            else:
+                color = "#96ceb4"  # Leaf
+
+            shape = "dot"
+
+        title = f"""
+        <b>{data['label']}</b><br>
+        Words: {data.get('word_count', 0):,}<br>
+        Links: {data.get('link_count', 0)}<br>
+        Backlinks: {data.get('backlink_count', 0)}<br>
+        Tags: {', '.join(data.get('tags', [])) or 'none'}
+        """
+
+        net.add_node(
+            node_id,
+            label=data["label"],
+            title=title,
+            color=color,
+            size=size,
+            shape=shape,
+        )
+
+    # Add edges
+    for source, target in edges:
+        if source in nodes and target in nodes:
+            net.add_edge(source, target)
+
+    # Save to HTML
+    net.save_graph(output_path)
+    return output_path
+
+
+def export_json(nodes: dict, edges: list, output_path: str) -> str:
+    """Export graph data as JSON for use with other tools."""
+    data = {
+        "nodes": [
+            {"id": k, **v}
+            for k, v in nodes.items()
+        ],
+        "edges": [
+            {"source": s, "target": t}
+            for s, t in edges
+        ],
+    }
+
+    with open(output_path, "w") as f:
+        json.dump(data, f, indent=2, default=str)
+
+    return output_path
+
+
+def export_graphml(nodes: dict, edges: list, output_path: str) -> str:
+    """Export as GraphML for use with Gephi, yEd, etc."""
+    if not HAS_NETWORKX:
+        raise ImportError("networkx is required: pip install networkx")
+
+    G = create_networkx_graph(nodes, edges)
+    nx.write_graphml(G, output_path)
+    return output_path
+
+
+def print_stats(nodes: dict, edges: list, stats: dict):
+    """Print graph statistics to console."""
+    print("=" * 50)
+    print("  KNOWLEDGE GRAPH STATISTICS")
+    print("=" * 50)
+    print()
+    print(f"  Total Nodes:    {stats['total_nodes']}")
+    print(f"  Total Edges:    {stats['total_edges']}")
+    print(f"  Notes:          {stats['notes']}")
+    print(f"  Tags:           {stats['tags']}")
+    print()
+
+    # Find hub notes (most backlinks)
+    notes = [(k, v) for k, v in nodes.items() if v["type"] == "note"]
+    by_backlinks = sorted(notes, key=lambda x: x[1].get("backlink_count", 0), reverse=True)
+
+    print("-" * 50)
+    print("  TOP HUB NOTES (most backlinks)")
+    print("-" * 50)
+    for node_id, data in by_backlinks[:10]:
+        bl = data.get("backlink_count", 0)
+        if bl > 0:
+            print(f"  {node_id:<35} {bl:>4} backlinks")
+    print()
+
+    # Find orphan notes
+    orphans = [k for k, v in nodes.items()
+               if v["type"] == "note"
+               and v.get("backlink_count", 0) == 0
+               and v.get("link_count", 0) == 0]
+
+    if orphans:
+        print("-" * 50)
+        print(f"  ISOLATED NOTES ({len(orphans)} found)")
+        print("-" * 50)
+        for node_id in orphans[:10]:
+            print(f"  - {node_id}")
+        if len(orphans) > 10:
+            print(f"  ... and {len(orphans) - 10} more")
+        print()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Build and visualize a knowledge graph from your notes",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Output Formats:
+  --output graph.html    Interactive HTML (requires pyvis)
+  --json graph.json      JSON for custom visualization
+  --graphml graph.xml    GraphML for Gephi, yEd, etc.
+
+Examples:
+  %(prog)s ~/notes                          Generate interactive graph
+  %(prog)s ~/notes --tags                   Include tag nodes
+  %(prog)s ~/notes --min-links 2            Only connected notes
+  %(prog)s ~/notes --json data.json         Export as JSON
+        """,
+    )
+    parser.add_argument("folder", nargs="?", default=".", help="Folder to analyze")
+    parser.add_argument("--output", "-o", default="knowledge_graph.html", help="Output file path")
+    parser.add_argument("--tags", action="store_true", help="Include tags as nodes")
+    parser.add_argument("--min-links", type=int, default=0, help="Minimum connections to include")
+    parser.add_argument("--json", metavar="FILE", help="Export as JSON")
+    parser.add_argument("--graphml", metavar="FILE", help="Export as GraphML")
+    parser.add_argument("--stats-only", action="store_true", help="Only print statistics")
+    parser.add_argument("--type", default="md", help="File extensions (default: md)")
+
+    args = parser.parse_args()
+
+    extensions = tuple(f".{ext.strip('.')}" for ext in args.type.split(","))
+
+    print(f"\nScanning {args.folder}...\n")
+
+    # Build graph
+    nodes, edges, stats = build_graph(
+        args.folder,
+        extensions=extensions,
+        include_tags=args.tags,
+    )
+
+    if not nodes:
+        print("No notes found.")
+        return
+
+    # Filter if requested
+    nodes, edges = filter_graph(nodes, edges, args.min_links)
+
+    # Print stats
+    print_stats(nodes, edges, stats)
+
+    if args.stats_only:
+        return
+
+    # Export
+    if args.json:
+        path = export_json(nodes, edges, args.json)
+        print(f"Exported JSON: {path}")
+
+    if args.graphml:
+        if not HAS_NETWORKX:
+            print("ERROR: networkx required for GraphML export")
+            print("  pip install networkx")
+        else:
+            path = export_graphml(nodes, edges, args.graphml)
+            print(f"Exported GraphML: {path}")
+
+    if not args.json and not args.graphml:
+        if not HAS_PYVIS:
+            print("WARNING: pyvis not installed, cannot create HTML visualization")
+            print("  pip install pyvis networkx")
+            print()
+            print("Falling back to JSON export...")
+            path = export_json(nodes, edges, args.output.replace(".html", ".json"))
+            print(f"Exported JSON: {path}")
+        else:
+            path = create_pyvis_visualization(nodes, edges, args.output)
+            print(f"Created visualization: {path}")
+            print("Open this file in a browser to explore your knowledge graph!")
+
+
+if __name__ == "__main__":
+    main()
