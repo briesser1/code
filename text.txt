@@ -1,1 +1,417 @@
+# MariaDB to Snowflake SQL Cheat Sheet
 
+## Key Conceptual Differences
+
+| Concept | MariaDB | Snowflake |
+|---------|---------|-----------|
+| Case sensitivity | Identifiers case-insensitive by default | Identifiers UPPERCASE by default unless quoted |
+| Quoting identifiers | Backticks `` `column` `` | Double quotes `"column"` |
+| String literals | Single or double quotes | Single quotes only |
+| Schema structure | `database.table` | `database.schema.table` |
+| Auto-increment | `AUTO_INCREMENT` | `AUTOINCREMENT` or `IDENTITY` |
+| Comments | `--`, `#`, `/* */` | `--`, `/* */` (no `#`) |
+
+## Data Types
+
+| MariaDB | Snowflake | Notes |
+|---------|-----------|-------|
+| `TINYINT`, `SMALLINT`, `MEDIUMINT`, `INT`, `BIGINT` | `NUMBER` or `INTEGER` | Snowflake uses `NUMBER(precision, scale)` |
+| `FLOAT`, `DOUBLE` | `FLOAT` | Snowflake FLOAT is always 64-bit |
+| `DECIMAL(p,s)` | `NUMBER(p,s)` | Direct equivalent |
+| `VARCHAR(n)` | `VARCHAR(n)` | Snowflake max is 16MB; `n` is optional |
+| `TEXT`, `MEDIUMTEXT`, `LONGTEXT` | `VARCHAR` | No separate TEXT type |
+| `BLOB`, `MEDIUMBLOB`, `LONGBLOB` | `BINARY` | Or use stages for large files |
+| `DATE` | `DATE` | Same |
+| `DATETIME` | `TIMESTAMP_NTZ` | No timezone |
+| `TIMESTAMP` | `TIMESTAMP_LTZ` | With local timezone |
+| `TIME` | `TIME` | Same |
+| `BOOLEAN` | `BOOLEAN` | Same |
+| `JSON` | `VARIANT` | Snowflake's semi-structured type |
+| `ENUM` | `VARCHAR` + constraint | No native ENUM |
+
+## SELECT Syntax
+
+### LIMIT / OFFSET
+
+```sql
+-- MariaDB
+SELECT * FROM table LIMIT 10;
+SELECT * FROM table LIMIT 10 OFFSET 20;
+SELECT * FROM table LIMIT 20, 10;  -- offset, count
+
+-- Snowflake
+SELECT * FROM table LIMIT 10;
+SELECT * FROM table LIMIT 10 OFFSET 20;
+-- No comma syntax
+```
+
+### String Concatenation
+
+```sql
+-- MariaDB
+SELECT CONCAT(first_name, ' ', last_name) FROM users;
+SELECT first_name || ' ' || last_name FROM users;  -- if PIPES_AS_CONCAT
+
+-- Snowflake
+SELECT first_name || ' ' || last_name FROM users;
+SELECT CONCAT(first_name, ' ', last_name) FROM users;
+-- Both work; || is idiomatic
+```
+
+### IFNULL / COALESCE
+
+```sql
+-- MariaDB
+SELECT IFNULL(column, 'default') FROM table;
+SELECT COALESCE(col1, col2, 'default') FROM table;
+
+-- Snowflake
+SELECT IFNULL(column, 'default') FROM table;      -- works
+SELECT NVL(column, 'default') FROM table;         -- also available
+SELECT COALESCE(col1, col2, 'default') FROM table;
+```
+
+### IF / IFF
+
+```sql
+-- MariaDB
+SELECT IF(condition, true_val, false_val) FROM table;
+
+-- Snowflake
+SELECT IFF(condition, true_val, false_val) FROM table;
+-- Note the extra F!
+```
+
+## String Functions
+
+| MariaDB | Snowflake | Notes |
+|---------|-----------|-------|
+| `CONCAT(a, b, c)` | `CONCAT(a, b, c)` or `a \|\| b \|\| c` | Same |
+| `CONCAT_WS(sep, a, b)` | `CONCAT_WS(sep, a, b)` | Same |
+| `SUBSTRING(str, pos, len)` | `SUBSTR(str, pos, len)` | `SUBSTRING` also works |
+| `LEFT(str, n)` | `LEFT(str, n)` | Same |
+| `RIGHT(str, n)` | `RIGHT(str, n)` | Same |
+| `LENGTH(str)` | `LENGTH(str)` | Same (bytes in Snowflake) |
+| `CHAR_LENGTH(str)` | `LENGTH(str)` | Use `LENGTH` for characters |
+| `LOCATE(substr, str)` | `POSITION(substr IN str)` | Or `CHARINDEX(substr, str)` |
+| `INSTR(str, substr)` | `POSITION(substr IN str)` | Different arg order! |
+| `REPLACE(str, from, to)` | `REPLACE(str, from, to)` | Same |
+| `TRIM(str)` | `TRIM(str)` | Same |
+| `LPAD(str, len, pad)` | `LPAD(str, len, pad)` | Same |
+| `RPAD(str, len, pad)` | `RPAD(str, len, pad)` | Same |
+| `UPPER(str)` | `UPPER(str)` | Same |
+| `LOWER(str)` | `LOWER(str)` | Same |
+| `REGEXP_REPLACE(str, pat, repl)` | `REGEXP_REPLACE(str, pat, repl)` | Same |
+| `REGEXP_SUBSTR(str, pat)` | `REGEXP_SUBSTR(str, pat)` | Same |
+
+## Date/Time Functions
+
+| MariaDB | Snowflake | Notes |
+|---------|-----------|-------|
+| `NOW()` | `CURRENT_TIMESTAMP()` | Or `SYSDATE()` |
+| `CURDATE()` | `CURRENT_DATE()` | Same concept |
+| `CURTIME()` | `CURRENT_TIME()` | Same concept |
+| `DATE(datetime)` | `DATE(datetime)` or `datetime::DATE` | Same |
+| `YEAR(date)` | `YEAR(date)` | Same |
+| `MONTH(date)` | `MONTH(date)` | Same |
+| `DAY(date)` | `DAY(date)` or `DAYOFMONTH(date)` | Same |
+| `HOUR(time)` | `HOUR(time)` | Same |
+| `MINUTE(time)` | `MINUTE(time)` | Same |
+| `SECOND(time)` | `SECOND(time)` | Same |
+| `DAYOFWEEK(date)` | `DAYOFWEEK(date)` | 0=Sun in MariaDB; 0=Sun in Snowflake |
+| `WEEKDAY(date)` | `DAYOFWEEK(date) - 1` | MariaDB: 0=Mon |
+| `DATE_FORMAT(date, fmt)` | `TO_CHAR(date, fmt)` | Different format codes! |
+| `STR_TO_DATE(str, fmt)` | `TO_DATE(str, fmt)` | Different format codes! |
+| `DATE_ADD(date, INTERVAL n unit)` | `DATEADD(unit, n, date)` | Arg order differs |
+| `DATE_SUB(date, INTERVAL n unit)` | `DATEADD(unit, -n, date)` | Use negative |
+| `DATEDIFF(d1, d2)` | `DATEDIFF(day, d2, d1)` | Snowflake needs unit; arg order differs |
+| `TIMESTAMPDIFF(unit, d1, d2)` | `DATEDIFF(unit, d1, d2)` | Similar |
+| `UNIX_TIMESTAMP(date)` | `DATE_PART(epoch_second, date)` | Extract epoch |
+| `FROM_UNIXTIME(ts)` | `TO_TIMESTAMP(ts)` | From epoch |
+
+### Date Format Codes
+
+| MariaDB | Snowflake | Meaning |
+|---------|-----------|---------|
+| `%Y` | `YYYY` | 4-digit year |
+| `%y` | `YY` | 2-digit year |
+| `%m` | `MM` | Month (01-12) |
+| `%d` | `DD` | Day (01-31) |
+| `%H` | `HH24` | Hour (00-23) |
+| `%i` | `MI` | Minutes |
+| `%s` | `SS` | Seconds |
+| `%M` | `MMMM` | Month name |
+| `%b` | `MON` | Abbreviated month |
+| `%W` | `DY` | Day name |
+
+```sql
+-- MariaDB
+SELECT DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') FROM table;
+
+-- Snowflake
+SELECT TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS') FROM table;
+```
+
+## Date Arithmetic
+
+```sql
+-- MariaDB
+SELECT DATE_ADD(date_col, INTERVAL 7 DAY) FROM table;
+SELECT date_col + INTERVAL 1 MONTH FROM table;
+
+-- Snowflake
+SELECT DATEADD(day, 7, date_col) FROM table;
+SELECT DATEADD(month, 1, date_col) FROM table;
+-- Or using +/- with INTERVAL
+SELECT date_col + INTERVAL '7 days' FROM table;
+```
+
+## Aggregate Functions
+
+| MariaDB | Snowflake | Notes |
+|---------|-----------|-------|
+| `GROUP_CONCAT(col)` | `LISTAGG(col, ',')` | Different syntax |
+| `GROUP_CONCAT(col SEPARATOR ';')` | `LISTAGG(col, ';')` | Delimiter as arg |
+| `GROUP_CONCAT(DISTINCT col)` | `LISTAGG(DISTINCT col, ',')` | Same concept |
+| `COUNT(*)` | `COUNT(*)` | Same |
+| `COUNT(DISTINCT col)` | `COUNT(DISTINCT col)` | Same |
+| `AVG(col)` | `AVG(col)` | Same |
+| `SUM(col)` | `SUM(col)` | Same |
+| `MIN(col)` | `MIN(col)` | Same |
+| `MAX(col)` | `MAX(col)` | Same |
+
+```sql
+-- MariaDB
+SELECT category, GROUP_CONCAT(name ORDER BY name SEPARATOR ', ')
+FROM products GROUP BY category;
+
+-- Snowflake
+SELECT category, LISTAGG(name, ', ') WITHIN GROUP (ORDER BY name)
+FROM products GROUP BY category;
+```
+
+## Window Functions
+
+Window functions are largely similar, but watch for:
+
+```sql
+-- MariaDB
+SELECT *, ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary DESC) as rn
+FROM employees;
+
+-- Snowflake (same syntax)
+SELECT *, ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary DESC) as rn
+FROM employees;
+```
+
+Both support: `ROW_NUMBER()`, `RANK()`, `DENSE_RANK()`, `NTILE()`, `LAG()`, `LEAD()`, `FIRST_VALUE()`, `LAST_VALUE()`, `SUM() OVER()`, etc.
+
+## DDL Differences
+
+### CREATE TABLE
+
+```sql
+-- MariaDB
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    data JSON
+);
+
+-- Snowflake
+CREATE TABLE users (
+    id INT AUTOINCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    data VARIANT
+);
+```
+
+### ALTER TABLE
+
+```sql
+-- MariaDB
+ALTER TABLE t ADD COLUMN new_col VARCHAR(100);
+ALTER TABLE t DROP COLUMN old_col;
+ALTER TABLE t MODIFY COLUMN col VARCHAR(200);
+ALTER TABLE t CHANGE old_name new_name VARCHAR(100);
+
+-- Snowflake
+ALTER TABLE t ADD COLUMN new_col VARCHAR(100);
+ALTER TABLE t DROP COLUMN old_col;
+ALTER TABLE t ALTER COLUMN col SET DATA TYPE VARCHAR(200);
+ALTER TABLE t RENAME COLUMN old_name TO new_name;
+```
+
+### Indexes
+
+```sql
+-- MariaDB
+CREATE INDEX idx_name ON table(column);
+CREATE UNIQUE INDEX idx_name ON table(column);
+
+-- Snowflake
+-- No traditional indexes! Snowflake handles optimization automatically.
+-- Use clustering keys for large tables:
+ALTER TABLE t CLUSTER BY (column);
+```
+
+## INSERT / UPDATE / DELETE
+
+### INSERT
+
+```sql
+-- MariaDB
+INSERT INTO t (a, b) VALUES (1, 2), (3, 4);
+INSERT INTO t SET a = 1, b = 2;
+INSERT IGNORE INTO t (a) VALUES (1);
+REPLACE INTO t (a, b) VALUES (1, 2);
+
+-- Snowflake
+INSERT INTO t (a, b) VALUES (1, 2), (3, 4);
+-- No SET syntax
+-- No INSERT IGNORE; use MERGE instead
+-- No REPLACE; use MERGE instead
+```
+
+### UPSERT / MERGE
+
+```sql
+-- MariaDB
+INSERT INTO t (id, val) VALUES (1, 'new')
+ON DUPLICATE KEY UPDATE val = VALUES(val);
+
+-- Snowflake
+MERGE INTO t USING (SELECT 1 as id, 'new' as val) s ON t.id = s.id
+WHEN MATCHED THEN UPDATE SET val = s.val
+WHEN NOT MATCHED THEN INSERT (id, val) VALUES (s.id, s.val);
+```
+
+### UPDATE with JOIN
+
+```sql
+-- MariaDB
+UPDATE t1 JOIN t2 ON t1.id = t2.t1_id
+SET t1.status = t2.status;
+
+-- Snowflake
+UPDATE t1
+SET status = t2.status
+FROM t2
+WHERE t1.id = t2.t1_id;
+```
+
+### DELETE with JOIN
+
+```sql
+-- MariaDB
+DELETE t1 FROM t1 JOIN t2 ON t1.id = t2.t1_id WHERE t2.flag = 1;
+
+-- Snowflake
+DELETE FROM t1 USING t2 WHERE t1.id = t2.t1_id AND t2.flag = 1;
+```
+
+## JSON / Semi-Structured Data
+
+```sql
+-- MariaDB
+SELECT JSON_EXTRACT(data, '$.name') FROM t;
+SELECT data->'$.name' FROM t;
+SELECT JSON_UNQUOTE(JSON_EXTRACT(data, '$.name')) FROM t;
+SELECT data->>'$.name' FROM t;
+
+-- Snowflake (using VARIANT)
+SELECT data:name FROM t;                    -- Returns VARIANT
+SELECT data:name::STRING FROM t;            -- Cast to string
+SELECT data['name'] FROM t;                 -- Bracket notation
+SELECT GET_PATH(data, 'name') FROM t;       -- Function form
+```
+
+### Nested JSON
+
+```sql
+-- MariaDB
+SELECT JSON_EXTRACT(data, '$.address.city') FROM t;
+
+-- Snowflake
+SELECT data:address.city::STRING FROM t;
+SELECT data:address:city::STRING FROM t;    -- Both work
+```
+
+### JSON Arrays
+
+```sql
+-- MariaDB
+SELECT JSON_EXTRACT(data, '$.tags[0]') FROM t;
+
+-- Snowflake
+SELECT data:tags[0]::STRING FROM t;
+```
+
+### Flattening Arrays (Snowflake-specific)
+
+```sql
+-- Snowflake: Explode JSON arrays
+SELECT t.id, f.value::STRING as tag
+FROM t, LATERAL FLATTEN(input => t.data:tags) f;
+```
+
+## Common Gotchas
+
+1. **Division**: Both truncate integer division. Use `::FLOAT` in Snowflake for decimal results.
+
+2. **Empty strings vs NULL**: Snowflake treats them differently; be explicit.
+
+3. **Case sensitivity**: Unquoted identifiers become UPPERCASE in Snowflake.
+   ```sql
+   CREATE TABLE MyTable (...)  -- Creates "MYTABLE"
+   CREATE TABLE "MyTable" (...) -- Creates "MyTable"
+   ```
+
+4. **Boolean comparisons**: Snowflake is stricter.
+   ```sql
+   -- MariaDB
+   WHERE flag  -- Works if flag is 0/1
+   
+   -- Snowflake
+   WHERE flag = TRUE  -- Be explicit
+   ```
+
+5. **DISTINCT in aggregates**: Similar syntax but verify behavior with NULLs.
+
+6. **Transactions**: Snowflake auto-commits DDL; explicit transactions work differently.
+
+7. **Temporary tables**: Syntax differs slightly.
+   ```sql
+   -- MariaDB
+   CREATE TEMPORARY TABLE tmp (...);
+   
+   -- Snowflake
+   CREATE TEMPORARY TABLE tmp (...);  -- Session-scoped
+   CREATE TRANSIENT TABLE tmp (...);  -- Persists but no fail-safe
+   ```
+
+## Snowflake-Specific Features Worth Knowing
+
+- **QUALIFY**: Filter window function results without subquery
+  ```sql
+  SELECT * FROM t
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY x ORDER BY y) = 1;
+  ```
+
+- **SAMPLE**: Random sampling
+  ```sql
+  SELECT * FROM t SAMPLE (10);  -- 10% of rows
+  ```
+
+- **Time travel**: Query historical data
+  ```sql
+  SELECT * FROM t AT(TIMESTAMP => '2024-01-01 00:00:00'::TIMESTAMP);
+  SELECT * FROM t BEFORE(STATEMENT => 'query-id');
+  ```
+
+- **CLONE**: Zero-copy cloning
+  ```sql
+  CREATE TABLE t_backup CLONE t;
+  ```
