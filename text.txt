@@ -1,417 +1,710 @@
-# MariaDB to Snowflake SQL Cheat Sheet
-
-## Key Conceptual Differences
-
-| Concept | MariaDB | Snowflake |
-|---------|---------|-----------|
-| Case sensitivity | Identifiers case-insensitive by default | Identifiers UPPERCASE by default unless quoted |
-| Quoting identifiers | Backticks `` `column` `` | Double quotes `"column"` |
-| String literals | Single or double quotes | Single quotes only |
-| Schema structure | `database.table` | `database.schema.table` |
-| Auto-increment | `AUTO_INCREMENT` | `AUTOINCREMENT` or `IDENTITY` |
-| Comments | `--`, `#`, `/* */` | `--`, `/* */` (no `#`) |
-
-## Data Types
-
-| MariaDB | Snowflake | Notes |
-|---------|-----------|-------|
-| `TINYINT`, `SMALLINT`, `MEDIUMINT`, `INT`, `BIGINT` | `NUMBER` or `INTEGER` | Snowflake uses `NUMBER(precision, scale)` |
-| `FLOAT`, `DOUBLE` | `FLOAT` | Snowflake FLOAT is always 64-bit |
-| `DECIMAL(p,s)` | `NUMBER(p,s)` | Direct equivalent |
-| `VARCHAR(n)` | `VARCHAR(n)` | Snowflake max is 16MB; `n` is optional |
-| `TEXT`, `MEDIUMTEXT`, `LONGTEXT` | `VARCHAR` | No separate TEXT type |
-| `BLOB`, `MEDIUMBLOB`, `LONGBLOB` | `BINARY` | Or use stages for large files |
-| `DATE` | `DATE` | Same |
-| `DATETIME` | `TIMESTAMP_NTZ` | No timezone |
-| `TIMESTAMP` | `TIMESTAMP_LTZ` | With local timezone |
-| `TIME` | `TIME` | Same |
-| `BOOLEAN` | `BOOLEAN` | Same |
-| `JSON` | `VARIANT` | Snowflake's semi-structured type |
-| `ENUM` | `VARCHAR` + constraint | No native ENUM |
-
-## SELECT Syntax
-
-### LIMIT / OFFSET
-
-```sql
--- MariaDB
-SELECT * FROM table LIMIT 10;
-SELECT * FROM table LIMIT 10 OFFSET 20;
-SELECT * FROM table LIMIT 20, 10;  -- offset, count
-
--- Snowflake
-SELECT * FROM table LIMIT 10;
-SELECT * FROM table LIMIT 10 OFFSET 20;
--- No comma syntax
-```
-
-### String Concatenation
-
-```sql
--- MariaDB
-SELECT CONCAT(first_name, ' ', last_name) FROM users;
-SELECT first_name || ' ' || last_name FROM users;  -- if PIPES_AS_CONCAT
-
--- Snowflake
-SELECT first_name || ' ' || last_name FROM users;
-SELECT CONCAT(first_name, ' ', last_name) FROM users;
--- Both work; || is idiomatic
-```
-
-### IFNULL / COALESCE
-
-```sql
--- MariaDB
-SELECT IFNULL(column, 'default') FROM table;
-SELECT COALESCE(col1, col2, 'default') FROM table;
-
--- Snowflake
-SELECT IFNULL(column, 'default') FROM table;      -- works
-SELECT NVL(column, 'default') FROM table;         -- also available
-SELECT COALESCE(col1, col2, 'default') FROM table;
-```
-
-### IF / IFF
-
-```sql
--- MariaDB
-SELECT IF(condition, true_val, false_val) FROM table;
-
--- Snowflake
-SELECT IFF(condition, true_val, false_val) FROM table;
--- Note the extra F!
-```
-
-## String Functions
-
-| MariaDB | Snowflake | Notes |
-|---------|-----------|-------|
-| `CONCAT(a, b, c)` | `CONCAT(a, b, c)` or `a \|\| b \|\| c` | Same |
-| `CONCAT_WS(sep, a, b)` | `CONCAT_WS(sep, a, b)` | Same |
-| `SUBSTRING(str, pos, len)` | `SUBSTR(str, pos, len)` | `SUBSTRING` also works |
-| `LEFT(str, n)` | `LEFT(str, n)` | Same |
-| `RIGHT(str, n)` | `RIGHT(str, n)` | Same |
-| `LENGTH(str)` | `LENGTH(str)` | Same (bytes in Snowflake) |
-| `CHAR_LENGTH(str)` | `LENGTH(str)` | Use `LENGTH` for characters |
-| `LOCATE(substr, str)` | `POSITION(substr IN str)` | Or `CHARINDEX(substr, str)` |
-| `INSTR(str, substr)` | `POSITION(substr IN str)` | Different arg order! |
-| `REPLACE(str, from, to)` | `REPLACE(str, from, to)` | Same |
-| `TRIM(str)` | `TRIM(str)` | Same |
-| `LPAD(str, len, pad)` | `LPAD(str, len, pad)` | Same |
-| `RPAD(str, len, pad)` | `RPAD(str, len, pad)` | Same |
-| `UPPER(str)` | `UPPER(str)` | Same |
-| `LOWER(str)` | `LOWER(str)` | Same |
-| `REGEXP_REPLACE(str, pat, repl)` | `REGEXP_REPLACE(str, pat, repl)` | Same |
-| `REGEXP_SUBSTR(str, pat)` | `REGEXP_SUBSTR(str, pat)` | Same |
-
-## Date/Time Functions
-
-| MariaDB | Snowflake | Notes |
-|---------|-----------|-------|
-| `NOW()` | `CURRENT_TIMESTAMP()` | Or `SYSDATE()` |
-| `CURDATE()` | `CURRENT_DATE()` | Same concept |
-| `CURTIME()` | `CURRENT_TIME()` | Same concept |
-| `DATE(datetime)` | `DATE(datetime)` or `datetime::DATE` | Same |
-| `YEAR(date)` | `YEAR(date)` | Same |
-| `MONTH(date)` | `MONTH(date)` | Same |
-| `DAY(date)` | `DAY(date)` or `DAYOFMONTH(date)` | Same |
-| `HOUR(time)` | `HOUR(time)` | Same |
-| `MINUTE(time)` | `MINUTE(time)` | Same |
-| `SECOND(time)` | `SECOND(time)` | Same |
-| `DAYOFWEEK(date)` | `DAYOFWEEK(date)` | 0=Sun in MariaDB; 0=Sun in Snowflake |
-| `WEEKDAY(date)` | `DAYOFWEEK(date) - 1` | MariaDB: 0=Mon |
-| `DATE_FORMAT(date, fmt)` | `TO_CHAR(date, fmt)` | Different format codes! |
-| `STR_TO_DATE(str, fmt)` | `TO_DATE(str, fmt)` | Different format codes! |
-| `DATE_ADD(date, INTERVAL n unit)` | `DATEADD(unit, n, date)` | Arg order differs |
-| `DATE_SUB(date, INTERVAL n unit)` | `DATEADD(unit, -n, date)` | Use negative |
-| `DATEDIFF(d1, d2)` | `DATEDIFF(day, d2, d1)` | Snowflake needs unit; arg order differs |
-| `TIMESTAMPDIFF(unit, d1, d2)` | `DATEDIFF(unit, d1, d2)` | Similar |
-| `UNIX_TIMESTAMP(date)` | `DATE_PART(epoch_second, date)` | Extract epoch |
-| `FROM_UNIXTIME(ts)` | `TO_TIMESTAMP(ts)` | From epoch |
-
-### Date Format Codes
-
-| MariaDB | Snowflake | Meaning |
-|---------|-----------|---------|
-| `%Y` | `YYYY` | 4-digit year |
-| `%y` | `YY` | 2-digit year |
-| `%m` | `MM` | Month (01-12) |
-| `%d` | `DD` | Day (01-31) |
-| `%H` | `HH24` | Hour (00-23) |
-| `%i` | `MI` | Minutes |
-| `%s` | `SS` | Seconds |
-| `%M` | `MMMM` | Month name |
-| `%b` | `MON` | Abbreviated month |
-| `%W` | `DY` | Day name |
-
-```sql
--- MariaDB
-SELECT DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') FROM table;
-
--- Snowflake
-SELECT TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS') FROM table;
-```
-
-## Date Arithmetic
-
-```sql
--- MariaDB
-SELECT DATE_ADD(date_col, INTERVAL 7 DAY) FROM table;
-SELECT date_col + INTERVAL 1 MONTH FROM table;
-
--- Snowflake
-SELECT DATEADD(day, 7, date_col) FROM table;
-SELECT DATEADD(month, 1, date_col) FROM table;
--- Or using +/- with INTERVAL
-SELECT date_col + INTERVAL '7 days' FROM table;
-```
-
-## Aggregate Functions
-
-| MariaDB | Snowflake | Notes |
-|---------|-----------|-------|
-| `GROUP_CONCAT(col)` | `LISTAGG(col, ',')` | Different syntax |
-| `GROUP_CONCAT(col SEPARATOR ';')` | `LISTAGG(col, ';')` | Delimiter as arg |
-| `GROUP_CONCAT(DISTINCT col)` | `LISTAGG(DISTINCT col, ',')` | Same concept |
-| `COUNT(*)` | `COUNT(*)` | Same |
-| `COUNT(DISTINCT col)` | `COUNT(DISTINCT col)` | Same |
-| `AVG(col)` | `AVG(col)` | Same |
-| `SUM(col)` | `SUM(col)` | Same |
-| `MIN(col)` | `MIN(col)` | Same |
-| `MAX(col)` | `MAX(col)` | Same |
-
-```sql
--- MariaDB
-SELECT category, GROUP_CONCAT(name ORDER BY name SEPARATOR ', ')
-FROM products GROUP BY category;
-
--- Snowflake
-SELECT category, LISTAGG(name, ', ') WITHIN GROUP (ORDER BY name)
-FROM products GROUP BY category;
-```
-
-## Window Functions
-
-Window functions are largely similar, but watch for:
-
-```sql
--- MariaDB
-SELECT *, ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary DESC) as rn
-FROM employees;
-
--- Snowflake (same syntax)
-SELECT *, ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary DESC) as rn
-FROM employees;
-```
-
-Both support: `ROW_NUMBER()`, `RANK()`, `DENSE_RANK()`, `NTILE()`, `LAG()`, `LEAD()`, `FIRST_VALUE()`, `LAST_VALUE()`, `SUM() OVER()`, etc.
-
-## DDL Differences
-
-### CREATE TABLE
-
-```sql
--- MariaDB
-CREATE TABLE users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    data JSON
+PRAGMA foreign_keys=OFF;
+BEGIN TRANSACTION;
+CREATE TABLE jurisdiction_types (
+    type_id INTEGER PRIMARY KEY,
+    type_name TEXT NOT NULL UNIQUE,
+    description TEXT
 );
-
--- Snowflake
-CREATE TABLE users (
-    id INT AUTOINCREMENT PRIMARY KEY,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
-    data VARIANT
+INSERT INTO jurisdiction_types VALUES(1,'State','US State');
+INSERT INTO jurisdiction_types VALUES(2,'Territory','US Territory (e.g., Puerto Rico, Guam)');
+INSERT INTO jurisdiction_types VALUES(3,'District','Federal District (District of Columbia)');
+INSERT INTO jurisdiction_types VALUES(4,'Tribe','Federally recognized tribe with Title IV-E agreement');
+CREATE TABLE system_types (
+    type_id INTEGER PRIMARY KEY,
+    type_code TEXT NOT NULL UNIQUE,
+    type_name TEXT NOT NULL,
+    description TEXT,
+    federal_match_rate REAL
 );
-```
+INSERT INTO system_types VALUES(1,'CCWIS','Comprehensive Child Welfare Information System','Modern federal standard (effective Aug 2016) emphasizing data quality, modularity, and bi-directional data exchange',0.5);
+INSERT INTO system_types VALUES(2,'CCWIS_TRANSITIONAL','CCWIS Transitional','Jurisdiction declared intent to transition existing SACWIS to CCWIS by July 31, 2018 deadline',0.5);
+INSERT INTO system_types VALUES(3,'SACWIS','Statewide Automated Child Welfare Information System','Legacy federal standard (1993-2016) focused on comprehensive automated case management',0.5);
+INSERT INTO system_types VALUES(4,'TACWIS','Tribal Automated Child Welfare Information System','Tribal version of SACWIS for tribes with Title IV-E agreements',0.5);
+INSERT INTO system_types VALUES(5,'NON_CCWIS','Non-CCWIS System','System not designated as CCWIS; receives standard administrative FFP rate',0.5);
+INSERT INTO system_types VALUES(6,'COTS','Commercial Off-The-Shelf','Commercial product adapted for child welfare use',NULL);
+INSERT INTO system_types VALUES(7,'CUSTOM','Custom Development','Custom-built system specific to the jurisdiction',NULL);
+INSERT INTO system_types VALUES(8,'NONE','No Automated System','No automated child welfare information system in place',NULL);
+CREATE TABLE jurisdictions (
+    jurisdiction_id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    abbreviation TEXT,
+    jurisdiction_type_id INTEGER NOT NULL,
+    fips_code TEXT,
+    region TEXT,
 
-### ALTER TABLE
+    -- Current system information
+    current_system_name TEXT,
+    current_system_type_id INTEGER,
+    ccwis_status TEXT CHECK(ccwis_status IN ('CCWIS', 'TRANSITIONAL', 'NON_CCWIS', 'PENDING', 'UNKNOWN')),
+    ccwis_declaration_date DATE,
+    system_go_live_date DATE,
 
-```sql
--- MariaDB
-ALTER TABLE t ADD COLUMN new_col VARCHAR(100);
-ALTER TABLE t DROP COLUMN old_col;
-ALTER TABLE t MODIFY COLUMN col VARCHAR(200);
-ALTER TABLE t CHANGE old_name new_name VARCHAR(100);
+    -- Administrative details
+    administering_agency TEXT,
+    agency_website TEXT,
+    county_administered INTEGER DEFAULT 0,  -- 0 = state-administered, 1 = county-administered
 
--- Snowflake
-ALTER TABLE t ADD COLUMN new_col VARCHAR(100);
-ALTER TABLE t DROP COLUMN old_col;
-ALTER TABLE t ALTER COLUMN col SET DATA TYPE VARCHAR(200);
-ALTER TABLE t RENAME COLUMN old_name TO new_name;
-```
+    -- Data quality and compliance
+    afcars_compliant INTEGER DEFAULT 1,
+    nytd_compliant INTEGER DEFAULT 1,
+    ncands_compliant INTEGER DEFAULT 1,
 
-### Indexes
+    -- Timestamps
+    last_updated DATE DEFAULT CURRENT_DATE,
+    data_source TEXT,
 
-```sql
--- MariaDB
-CREATE INDEX idx_name ON table(column);
-CREATE UNIQUE INDEX idx_name ON table(column);
+    FOREIGN KEY (jurisdiction_type_id) REFERENCES jurisdiction_types(type_id),
+    FOREIGN KEY (current_system_type_id) REFERENCES system_types(type_id)
+);
+INSERT INTO jurisdictions VALUES(1,'Alabama','AL',1,'01','Southeast','FACTS',2,'CCWIS',NULL,NULL,'Alabama Department of Human Resources',NULL,1,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(2,'Alaska','AK',1,'02','West','ORCA',2,'CCWIS',NULL,NULL,'Alaska Office of Childrens Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(3,'Arizona','AZ',1,'04','Southwest','GUARDIAN',1,'CCWIS',NULL,NULL,'Arizona Department of Child Safety',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(4,'Arkansas','AR',1,'05','South','CHRIS',2,'CCWIS',NULL,NULL,'Arkansas Division of Children and Family Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(5,'California','CA',1,'06','West','CWS/CMS',2,'CCWIS',NULL,NULL,'California Department of Social Services',NULL,1,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(6,'Colorado','CO',1,'08','West','TRAILS',2,'CCWIS',NULL,NULL,'Colorado Department of Human Services',NULL,1,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(7,'Connecticut','CT',1,'09','Northeast','LINK',2,'CCWIS',NULL,NULL,'Connecticut Department of Children and Families',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(8,'Delaware','DE',1,'10','Mid-Atlantic','FOCUS',1,'CCWIS',NULL,NULL,'Delaware Division of Family Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(9,'Florida','FL',1,'12','Southeast','FSFN',2,'CCWIS',NULL,NULL,'Florida Department of Children and Families',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(10,'Georgia','GA',1,'13','Southeast','SHINES',1,'CCWIS',NULL,NULL,'Georgia Division of Family and Children Services',NULL,1,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(11,'Hawaii','HI',1,'15','West','SHAKA',5,'CCWIS',NULL,NULL,'Hawaii Department of Human Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(12,'Idaho','ID',1,'16','West','ESPI',1,'CCWIS',NULL,NULL,'Idaho Department of Health and Welfare',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(13,'Illinois','IL',1,'17','Midwest','ICWS',5,'CCWIS',NULL,NULL,'Illinois Department of Children and Family Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(14,'Indiana','IN',1,'18','Midwest','KIDTRAKS',2,'CCWIS',NULL,NULL,'Indiana Department of Child Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(15,'Iowa','IA',1,'19','Midwest','JARVIS',2,'CCWIS',NULL,NULL,'Iowa Department of Human Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(16,'Kansas','KS',1,'20','Midwest','FACTS',5,'CCWIS',NULL,NULL,'Kansas Department for Children and Families',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(17,'Kentucky','KY',1,'21','Southeast','TWIST',1,'CCWIS',NULL,NULL,'Kentucky Cabinet for Health and Family Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(18,'Louisiana','LA',1,'22','South','ACCESS',5,'CCWIS',NULL,NULL,'Louisiana Department of Children and Family Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(19,'Maine','ME',1,'23','Northeast','MACWIS',2,'CCWIS',NULL,NULL,'Maine Department of Health and Human Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(20,'Maryland','MD',1,'24','Mid-Atlantic','CLAIMS',1,'CCWIS',NULL,NULL,'Maryland Department of Human Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(21,'Massachusetts','MA',1,'25','Northeast','FAMILYNET',5,'NON_CCWIS',NULL,NULL,'Massachusetts Department of Children and Families',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(22,'Michigan','MI',1,'26','Midwest','MISACWIS',2,'TRANSITIONAL',NULL,NULL,'Michigan Department of Health and Human Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(23,'Minnesota','MN',1,'27','Midwest','SSIS',1,'CCWIS',NULL,NULL,'Minnesota Department of Human Services',NULL,1,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(24,'Mississippi','MS',1,'28','South','MACWIS I',5,'CCWIS',NULL,NULL,'Mississippi Department of Child Protection Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(25,'Missouri','MO',1,'29','Midwest','FACES',2,'CCWIS',NULL,NULL,'Missouri Department of Social Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(26,'Montana','MT',1,'30','West','CAPS',5,'CCWIS',NULL,NULL,'Montana Department of Public Health and Human Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(27,'Nebraska','NE',1,'31','Midwest','N-FOCUS',5,'TRANSITIONAL',NULL,NULL,'Nebraska Department of Health and Human Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(28,'Nevada','NV',1,'32','West','UNITY',1,'TRANSITIONAL',NULL,NULL,'Nevada Division of Child and Family Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(29,'New Hampshire','NH',1,'33','Northeast','BRIDGES',2,'CCWIS',NULL,NULL,'New Hampshire Division for Children Youth and Families',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(30,'New Jersey','NJ',1,'34','Mid-Atlantic','NJ SPIRIT',1,'CCWIS',NULL,NULL,'New Jersey Department of Children and Families',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(31,'New Mexico','NM',1,'35','Southwest','FACTS',2,'CCWIS',NULL,NULL,'New Mexico Children Youth and Families Department',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(32,'New York','NY',1,'36','Northeast','CONNECTIONS',1,'CCWIS',NULL,NULL,'New York Office of Children and Family Services',NULL,1,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(33,'North Carolina','NC',1,'37','Southeast','NC FAST',5,'NON_CCWIS',NULL,NULL,'North Carolina Department of Health and Human Services',NULL,1,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(34,'North Dakota','ND',1,'38','Midwest','FRAME',2,'CCWIS',NULL,NULL,'North Dakota Department of Human Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(35,'Ohio','OH',1,'39','Midwest','OHIO SACWIS',1,'CCWIS',NULL,NULL,'Ohio Department of Job and Family Services',NULL,1,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(36,'Oklahoma','OK',1,'40','South','OK KIDS',2,'CCWIS',NULL,NULL,'Oklahoma Department of Human Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(37,'Oregon','OR',1,'41','West','OR-KIDS',2,'TRANSITIONAL',NULL,NULL,'Oregon Department of Human Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(38,'Pennsylvania','PA',1,'42','Mid-Atlantic','CWIS',2,'CCWIS',NULL,NULL,'Pennsylvania Department of Human Services',NULL,1,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(39,'Rhode Island','RI',1,'44','Northeast','RICHIST',2,'CCWIS',NULL,NULL,'Rhode Island Department of Children Youth and Families',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(40,'South Carolina','SC',1,'45','Southeast','CAPSS',1,'CCWIS',NULL,NULL,'South Carolina Department of Social Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(41,'South Dakota','SD',1,'46','Midwest','FACIS',1,'CCWIS',NULL,NULL,'South Dakota Department of Social Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(42,'Tennessee','TN',1,'47','Southeast','TFACTS',1,'CCWIS',NULL,NULL,'Tennessee Department of Childrens Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(43,'Texas','TX',1,'48','South','IMPACT',5,'TRANSITIONAL',NULL,NULL,'Texas Department of Family and Protective Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(44,'Utah','UT',1,'49','West','UT SAFE',2,'CCWIS',NULL,NULL,'Utah Division of Child and Family Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(45,'Vermont','VT',1,'50','Northeast','VT CWITS',5,'TRANSITIONAL',NULL,NULL,'Vermont Department for Children and Families',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(46,'Virginia','VA',1,'51','Southeast','OASIS',5,'CCWIS',NULL,NULL,'Virginia Department of Social Services',NULL,1,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(47,'Washington','WA',1,'53','West','FAMLINK',2,'CCWIS',NULL,NULL,'Washington Department of Children Youth and Families',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(48,'West Virginia','WV',1,'54','Southeast','FACTS',2,'CCWIS',NULL,NULL,'West Virginia Department of Health and Human Resources',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(49,'Wisconsin','WI',1,'55','Midwest','eWiSACWIS',1,'CCWIS',NULL,NULL,'Wisconsin Department of Children and Families',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(50,'Wyoming','WY',1,'56','West','WYCAPS',2,'CCWIS',NULL,NULL,'Wyoming Department of Family Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(51,'District of Columbia','DC',3,'11','Mid-Atlantic','FACES.NET',2,'CCWIS',NULL,NULL,'DC Child and Family Services Agency',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(52,'Puerto Rico','PR',2,'72','Caribbean','SIMCa',5,'CCWIS',NULL,NULL,'Puerto Rico Department of the Family',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(53,'Guam','GU',2,'66','Pacific',NULL,8,'UNKNOWN',NULL,NULL,'Guam Department of Public Health and Social Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(54,'Virgin Islands','VI',2,'78','Caribbean',NULL,8,'UNKNOWN',NULL,NULL,'Virgin Islands Department of Human Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(55,'American Samoa','AS',2,'60','Pacific',NULL,8,'UNKNOWN',NULL,NULL,'American Samoa Department of Human and Social Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(56,'Northern Mariana Islands','MP',2,'69','Pacific',NULL,8,'UNKNOWN',NULL,NULL,'CNMI Office of the Governor',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status Table (Jan 2026)');
+INSERT INTO jurisdictions VALUES(57,'Navajo Nation','NAVAJO',4,NULL,'Southwest','Tribal COTS System',6,'NON_CCWIS',NULL,NULL,'Navajo Nation Division of Social Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status');
+INSERT INTO jurisdictions VALUES(58,'Cherokee Nation','CHEROKEE',4,NULL,'South','Tribal COTS System',6,'NON_CCWIS',NULL,NULL,'Cherokee Nation Indian Child Welfare',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status');
+INSERT INTO jurisdictions VALUES(59,'Eastern Band of Cherokee Indians','EBCI',4,NULL,'Southeast','Tribal Custom System',7,'NON_CCWIS',NULL,NULL,'EBCI Family Safety Program',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status');
+INSERT INTO jurisdictions VALUES(60,'Pascua Yaqui Tribe','PASCUA',4,NULL,'Southwest','Tribal COTS System',6,'NON_CCWIS',NULL,NULL,'Pascua Yaqui Tribe Social Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status');
+INSERT INTO jurisdictions VALUES(61,'Port Gamble SKlallam Tribe','PGST',4,NULL,'West','Tribal Custom System',7,'NON_CCWIS',NULL,NULL,'Port Gamble SKlallam Family Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status');
+INSERT INTO jurisdictions VALUES(62,'Keweenaw Bay Indian Community','KBIC',4,NULL,'Midwest','Tribal COTS System',6,'NON_CCWIS',NULL,NULL,'KBIC Social Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status');
+INSERT INTO jurisdictions VALUES(63,'Confederated Salish and Kootenai Tribes','CSKT',4,NULL,'West','Tribal Custom System',7,'NON_CCWIS',NULL,NULL,'CSKT Division of Human Resources',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status');
+INSERT INTO jurisdictions VALUES(64,'Quinault Indian Nation','QUINAULT',4,NULL,'West','Tribal COTS System',6,'NON_CCWIS',NULL,NULL,'Quinault Nation Family Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status');
+INSERT INTO jurisdictions VALUES(65,'Grand Portage Band of Lake Superior Chippewa','GPLSC',4,NULL,'Midwest','Tribal COTS System',6,'NON_CCWIS',NULL,NULL,'Grand Portage Social Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status');
+INSERT INTO jurisdictions VALUES(66,'White Earth Nation','WHITEARTH',4,NULL,'Midwest','Tribal COTS System',6,'NON_CCWIS',NULL,NULL,'White Earth Child Welfare',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status');
+INSERT INTO jurisdictions VALUES(67,'Muckleshoot Indian Tribe','MUCKLESHOOT',4,NULL,'West','Tribal Custom System',7,'NON_CCWIS',NULL,NULL,'Muckleshoot Child and Family Services',NULL,0,1,1,1,'2026-01-12','ACF CCWIS Status');
+CREATE TABLE planned_systems (
+    plan_id INTEGER PRIMARY KEY,
+    jurisdiction_id INTEGER NOT NULL,
+    planned_system_name TEXT,
+    planned_system_type_id INTEGER,
+    target_ccwis_status TEXT CHECK(target_ccwis_status IN ('CCWIS', 'NON_CCWIS', 'UNKNOWN')),
 
--- Snowflake
--- No traditional indexes! Snowflake handles optimization automatically.
--- Use clustering keys for large tables:
-ALTER TABLE t CLUSTER BY (column);
-```
+    -- Timeline
+    planning_start_date DATE,
+    development_start_date DATE,
+    planned_go_live_date DATE,
+    actual_go_live_date DATE,
 
-## INSERT / UPDATE / DELETE
+    -- Project details
+    project_status TEXT CHECK(project_status IN ('Planning', 'Procurement', 'Development', 'Pilot', 'Implementation', 'Operational', 'Cancelled', 'On Hold')),
+    estimated_cost REAL,
+    federal_share REAL,
+    vendor_name TEXT,
 
-### INSERT
+    -- Notes
+    description TEXT,
+    last_updated DATE DEFAULT CURRENT_DATE,
 
-```sql
--- MariaDB
-INSERT INTO t (a, b) VALUES (1, 2), (3, 4);
-INSERT INTO t SET a = 1, b = 2;
-INSERT IGNORE INTO t (a) VALUES (1);
-REPLACE INTO t (a, b) VALUES (1, 2);
+    FOREIGN KEY (jurisdiction_id) REFERENCES jurisdictions(jurisdiction_id),
+    FOREIGN KEY (planned_system_type_id) REFERENCES system_types(type_id)
+);
+INSERT INTO planned_systems VALUES(1,4,'ARFocus',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Replacement for CHRIS','2026-01-12');
+INSERT INTO planned_systems VALUES(2,5,'CWS-CARES',NULL,'CCWIS',NULL,NULL,'2026-10-01',NULL,'Implementation',1711000000.0,856000000.0,NULL,'V1 October 2026, V2 April 2028. Deloitte as PaaS SI.','2026-01-12');
+INSERT INTO planned_systems VALUES(3,6,'TRAILS MODERNIZATION',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Modernization of existing TRAILS system','2026-01-12');
+INSERT INTO planned_systems VALUES(4,7,'CT-KIND',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Implementation',NULL,NULL,NULL,'CMA CareDirector on Microsoft Dynamics 365','2026-01-12');
+INSERT INTO planned_systems VALUES(5,51,'STAAND',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Replacement for FACES.NET','2026-01-12');
+INSERT INTO planned_systems VALUES(6,13,'IllinoisConnect',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Implementation',NULL,NULL,NULL,'COTS-based CCWIS with SAFE practice model','2026-01-12');
+INSERT INTO planned_systems VALUES(7,14,'I-KIDS',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Operational',NULL,NULL,NULL,'Salesforce Government Cloud with Tableau, MuleSoft, AWS','2026-01-12');
+INSERT INTO planned_systems VALUES(8,15,'VISION',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Replacement for JARVIS','2026-01-12');
+INSERT INTO planned_systems VALUES(9,19,'KATAHDIN',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Replacement for MACWIS','2026-01-12');
+INSERT INTO planned_systems VALUES(10,21,'i-FamilyNet',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Modernization of FAMILYNET','2026-01-12');
+INSERT INTO planned_systems VALUES(11,24,'MS PATHWAYS',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Replacement for MACWIS I','2026-01-12');
+INSERT INTO planned_systems VALUES(12,26,'MFSIS',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Montana Family Services Information System','2026-01-12');
+INSERT INTO planned_systems VALUES(13,29,'GRANITE FAMILIES',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Replacement for BRIDGES','2026-01-12');
+INSERT INTO planned_systems VALUES(14,31,'NEW MEXICO IMPACT',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Replacement for FACTS','2026-01-12');
+INSERT INTO planned_systems VALUES(15,33,'PATH NC',NULL,'NON_CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Planned as Non-CCWIS replacement for NC FAST','2026-01-12');
+INSERT INTO planned_systems VALUES(16,38,'ECM',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Enterprise Case Management - replacement for CWIS','2026-01-12');
+INSERT INTO planned_systems VALUES(17,46,'COMPASS',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Replacement for OASIS','2026-01-12');
+INSERT INTO planned_systems VALUES(18,48,'WV-PATH',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Replacement for FACTS','2026-01-12');
+INSERT INTO planned_systems VALUES(19,50,'WYOSAFE',NULL,'CCWIS',NULL,NULL,NULL,NULL,'Development',NULL,NULL,NULL,'Replacement for WYCAPS','2026-01-12');
+CREATE TABLE data_sources (
+    source_id INTEGER PRIMARY KEY,
+    source_name TEXT NOT NULL,
+    source_url TEXT,
+    source_type TEXT CHECK(source_type IN ('Federal', 'State', 'Academic', 'News', 'Other')),
+    publication_date DATE,
+    access_date DATE DEFAULT CURRENT_DATE,
+    reliability_score INTEGER CHECK(reliability_score BETWEEN 1 AND 5),
+    notes TEXT
+);
+INSERT INTO data_sources VALUES(1,'ACF CCWIS Status Page','https://acf.gov/cb/training-technical-assistance/ccwis-status','Federal',NULL,'2026-01-12',5,'Official federal tracking of CCWIS declarations');
+INSERT INTO data_sources VALUES(2,'Federal Register CCWIS Final Rule','https://www.federalregister.gov/documents/2016/06/02/2016-12509/comprehensive-child-welfare-information-system','Federal',NULL,'2026-01-12',5,'Original CCWIS rule publication');
+INSERT INTO data_sources VALUES(3,'45 CFR 1355.52','https://www.law.cornell.edu/cfr/text/45/1355.52','Federal',NULL,'2026-01-12',5,'CCWIS project requirements regulation');
+INSERT INTO data_sources VALUES(4,'California CWDS','https://cwds.ca.gov/','State',NULL,'2026-01-12',4,'California Child Welfare Digital Services');
+INSERT INTO data_sources VALUES(5,'Texas 2036 Reports','https://texas2036.org/','Other',NULL,'2026-01-12',3,'Policy research organization');
+INSERT INTO data_sources VALUES(6,'State Agency Websites',NULL,'State',NULL,'2026-01-12',4,'Various state child welfare agency websites');
+CREATE TABLE system_notes (
+    note_id INTEGER PRIMARY KEY,
+    jurisdiction_id INTEGER NOT NULL,
+    note_date DATE DEFAULT CURRENT_DATE,
+    note_category TEXT CHECK(note_category IN ('Implementation', 'Technical', 'Policy', 'Funding', 'Challenge', 'Success', 'Other')),
+    note_text TEXT NOT NULL,
+    source_id INTEGER,
 
--- Snowflake
-INSERT INTO t (a, b) VALUES (1, 2), (3, 4);
--- No SET syntax
--- No INSERT IGNORE; use MERGE instead
--- No REPLACE; use MERGE instead
-```
+    FOREIGN KEY (jurisdiction_id) REFERENCES jurisdictions(jurisdiction_id),
+    FOREIGN KEY (source_id) REFERENCES data_sources(source_id)
+);
+INSERT INTO system_notes VALUES(1,5,'2026-01-12','Implementation','CWS-CARES production pilot with Fresno, Placer, and Santa Clara counties. 129 organizations transitioning.',4);
+INSERT INTO system_notes VALUES(2,5,'2026-01-12','Funding','Total approved baseline cost $1.711 billion. Title IV-E FFP at 50% ($856M federal share).',4);
+INSERT INTO system_notes VALUES(3,43,'2026-01-12','Challenge','IMPACT built 1996 based on 1993 guidelines. Staff navigate 3 different system architectures. 12,000+ users.',5);
+INSERT INTO system_notes VALUES(4,43,'2026-01-12','Policy','Texas missed 2018 CCWIS transition deadline. No path to convert IMPACT; new system required.',5);
+INSERT INTO system_notes VALUES(5,32,'2026-01-12','Implementation','CONNECTIONS serves OCFS, Local DSS, and Voluntary Agencies. County-administered state faces unique CCWIS challenges.',1);
+INSERT INTO system_notes VALUES(6,32,'2026-01-12','Policy','Feb 2018: OCFS Executive decided to transition to CCWIS. Stakeholder concerns about system performance during transition.',1);
+INSERT INTO system_notes VALUES(7,9,'2026-01-12','Technical','FSFN tightly integrated with older technology. Limited mobile device and tablet access.',6);
+INSERT INTO system_notes VALUES(8,13,'2026-01-12','Implementation','IllinoisConnect: modular COTS-based CCWIS with SAFE practice model. Released tools include Intelligent Case Notes Search.',6);
+INSERT INTO system_notes VALUES(9,1,'2026-01-12','Policy','CCWIS effective August 1, 2016. Requires bi-directional data exchanges with courts, education, health systems.',2);
+CREATE TABLE vendors (
+    vendor_id INTEGER PRIMARY KEY,
+    vendor_name TEXT NOT NULL UNIQUE,
+    vendor_type TEXT CHECK(vendor_type IN ('Systems Integrator', 'Platform Vendor', 'Software Vendor', 'Cloud Provider', 'Consulting')),
+    headquarters TEXT,
+    website TEXT,
+    description TEXT
+);
+INSERT INTO vendors VALUES(1,'Deloitte','Systems Integrator','New York, NY','https://www2.deloitte.com','National leader in child welfare system implementations. Uses Microsoft Dynamics 365.');
+INSERT INTO vendors VALUES(2,'Accenture','Systems Integrator','Dublin, Ireland','https://www.accenture.com','Offers ACIS (Accenture Case Insight Solution) built on Salesforce.');
+INSERT INTO vendors VALUES(3,'CGI','Systems Integrator','Montreal, Canada','https://www.cgi.com','Government IT services including child welfare systems.');
+INSERT INTO vendors VALUES(4,'CMA Consulting','Systems Integrator','Trenton, NJ','https://cma.com','Specializes in child welfare. Uses Microsoft Dynamics 365 CareDirector.');
+INSERT INTO vendors VALUES(5,'RedMane Technology','Software Vendor','Chicago, IL','https://www.redmane.com','mCase platform for health and human services case management.');
+INSERT INTO vendors VALUES(6,'Binti','Software Vendor','Oakland, CA','https://binti.com','Modular CCWIS SaaS on Google Cloud. 36+ states, 550+ agencies.');
+INSERT INTO vendors VALUES(7,'Northwoods','Software Vendor','Dublin, OH','https://www.teamnorthwoods.com','Traverse AI-powered case discovery and content management.');
+INSERT INTO vendors VALUES(8,'Merative (IBM Cúram)','Software Vendor','Cambridge, MA','https://www.merative.com','Cúram Social Program Management COTS platform. Formerly IBM.');
+INSERT INTO vendors VALUES(9,'Infosys','Systems Integrator','Bangalore, India','https://www.infosys.com','Child Welfare Information Solution for CCWIS compliance.');
+INSERT INTO vendors VALUES(10,'Microsoft','Platform Vendor','Redmond, WA','https://www.microsoft.com','Dynamics 365, Power Platform, Azure Government cloud.');
+INSERT INTO vendors VALUES(11,'Salesforce','Platform Vendor','San Francisco, CA','https://www.salesforce.com','Government Cloud CRM, FedRAMP authorized. Used by Indiana.');
+INSERT INTO vendors VALUES(12,'AWS','Cloud Provider','Seattle, WA','https://aws.amazon.com','AWS GovCloud for government. FedRAMP High authorized.');
+INSERT INTO vendors VALUES(13,'Microsoft Azure','Cloud Provider','Redmond, WA','https://azure.microsoft.com','Azure Government cloud. FedRAMP High authorized.');
+INSERT INTO vendors VALUES(14,'Google Cloud','Cloud Provider','Mountain View, CA','https://cloud.google.com','Google Cloud Platform. Used by Binti.');
+INSERT INTO vendors VALUES(15,'Oracle','Platform Vendor','Austin, TX','https://www.oracle.com','Oracle Database, CX for Public Sector. Legacy SACWIS vendor.');
+CREATE TABLE technology_platforms (
+    platform_id INTEGER PRIMARY KEY,
+    platform_name TEXT NOT NULL UNIQUE,
+    platform_category TEXT CHECK(platform_category IN ('CRM', 'ERP', 'Database', 'Cloud Infrastructure', 'Case Management', 'Analytics', 'Integration')),
+    vendor_id INTEGER,
+    cloud_native INTEGER DEFAULT 0,
+    fedramp_authorized INTEGER DEFAULT 0,
+    description TEXT,
+    FOREIGN KEY (vendor_id) REFERENCES vendors(vendor_id)
+);
+INSERT INTO technology_platforms VALUES(1,'Microsoft Dynamics 365','CRM',10,1,1,'Cloud CRM with Power Platform. Used by ID, AZ, CT, IL.');
+INSERT INTO technology_platforms VALUES(2,'Salesforce Government Cloud','CRM',11,1,1,'FedRAMP authorized CRM. Used by Indiana CCWIS.');
+INSERT INTO technology_platforms VALUES(3,'AWS GovCloud','Cloud Infrastructure',12,1,1,'Isolated government cloud region. FedRAMP High.');
+INSERT INTO technology_platforms VALUES(4,'Azure Government','Cloud Infrastructure',13,1,1,'Microsoft government cloud. FedRAMP High.');
+INSERT INTO technology_platforms VALUES(5,'Google Cloud Platform','Cloud Infrastructure',14,1,1,'Used by Binti SaaS platform.');
+INSERT INTO technology_platforms VALUES(6,'Oracle Database','Database',15,0,1,'Legacy relational database. Common in older SACWIS.');
+INSERT INTO technology_platforms VALUES(7,'SQL Server','Database',10,0,1,'Microsoft relational database. Common in state systems.');
+INSERT INTO technology_platforms VALUES(8,'Cúram SPM','Case Management',8,0,0,'COTS case management. AR, CA, DC, MD, MN, MO, NE, NY, NC, PR, SC.');
+INSERT INTO technology_platforms VALUES(9,'Binti Platform','Case Management',6,1,0,'Modular CCWIS SaaS. 13 statewide implementations.');
+INSERT INTO technology_platforms VALUES(10,'mCase','Case Management',5,1,0,'Configurable case management platform.');
+INSERT INTO technology_platforms VALUES(11,'Traverse','Analytics',7,1,0,'AI-powered case discovery. Integrates with SACWIS/CCWIS.');
+INSERT INTO technology_platforms VALUES(12,'CareDirector','Case Management',4,1,1,'Dynamics 365-based child welfare accelerator.');
+INSERT INTO technology_platforms VALUES(13,'ACIS','Case Management',2,1,1,'Accenture Case Insight Solution on Salesforce.');
+INSERT INTO technology_platforms VALUES(14,'MuleSoft','Integration',11,1,1,'API management and integration platform.');
+INSERT INTO technology_platforms VALUES(15,'Tableau','Analytics',11,1,1,'Data visualization. Used by Indiana with Salesforce.');
+CREATE TABLE jurisdiction_platforms (
+    id INTEGER PRIMARY KEY,
+    jurisdiction_id INTEGER NOT NULL,
+    platform_id INTEGER,
+    vendor_id INTEGER,
+    role TEXT CHECK(role IN ('Primary System', 'Cloud Provider', 'Database', 'Analytics', 'Integration', 'Supplemental')),
+    implementation_status TEXT CHECK(implementation_status IN ('Operational', 'Implementation', 'Procurement', 'Planning', 'Legacy')),
+    notes TEXT,
+    source TEXT,
+    last_updated DATE DEFAULT CURRENT_DATE,
+    FOREIGN KEY (jurisdiction_id) REFERENCES jurisdictions(jurisdiction_id),
+    FOREIGN KEY (platform_id) REFERENCES technology_platforms(platform_id),
+    FOREIGN KEY (vendor_id) REFERENCES vendors(vendor_id)
+);
+INSERT INTO jurisdiction_platforms VALUES(1,14,2,NULL,'Primary System','Operational','CCWIS built on Salesforce 360 Platform for Government','Salesforce customer success story','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(2,14,3,NULL,'Cloud Provider','Operational','AWS services including Amazon Connect, Textract, Comprehend','AWS HHS resources','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(3,14,15,NULL,'Analytics','Operational','Tableau for enterprise analytics and reporting','Salesforce customer success story','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(4,12,1,1,'Primary System','Operational','ESPI system built on Dynamics 365 and Power Platform by Deloitte. 24-month implementation.','Deloitte case study','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(5,12,4,NULL,'Cloud Provider','Operational','FedRAMP-compliant Azure Government','Deloitte case study','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(6,3,1,NULL,'Primary System','Operational','Replaced 26-year-old mainframe with cloud-based Dynamics','Microsoft Industry Blog','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(7,7,12,4,'Primary System','Implementation','CT-KIND project using CareDirector on Dynamics 365','CMA success stories','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(8,13,1,NULL,'Supplemental','Operational','Ally-IL app built on Microsoft Teams for caseworker collaboration','Microsoft Industry Blog','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(9,35,11,NULL,'Analytics','Operational','Traverse integrated with SACWIS since April 2018','Northwoods case study','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(10,5,NULL,1,'Primary System','Implementation','Deloitte as PaaS Systems Integrator for CWS-CARES','OSI procurement documents','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(11,9,10,5,'Supplemental','Operational','RedMane mCase for Adult Protective Services (SAFE solution)','RedMane press release','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(12,31,9,6,'Supplemental','Operational','Binti modular CCWIS components','Binti website','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(13,4,9,6,'Supplemental','Operational','Binti modular CCWIS components','Binti website','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(14,11,9,6,'Supplemental','Operational','Binti statewide implementation','Binti website','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(15,33,9,6,'Supplemental','Operational','Binti statewide implementation','Binti website','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(16,20,8,NULL,'Primary System','Operational','Cúram-based CHESSIE system','IBM Cúram documentation','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(17,40,8,NULL,'Primary System','Operational','Cúram implementation','IBM Cúram documentation','2026-01-12');
+INSERT INTO jurisdiction_platforms VALUES(18,23,8,NULL,'Primary System','Operational','Cúram implementation for SSIS','IBM Cúram documentation','2026-01-12');
+CREATE TABLE system_details (
+    detail_id INTEGER PRIMARY KEY,
+    jurisdiction_id INTEGER NOT NULL,
+    system_name TEXT NOT NULL,
+    system_full_name TEXT,
+    system_acronym_meaning TEXT,
+    system_description TEXT,
+    primary_functions TEXT,
+    key_features TEXT,
+    modules_components TEXT,
+    technology_stack TEXT,
+    implementation_year INTEGER,
+    implementation_vendor TEXT,
+    current_status TEXT,
+    user_count TEXT,
+    counties_served TEXT,
+    integration_notes TEXT,
+    source_urls TEXT,
+    source_documents TEXT,
+    research_date DATE DEFAULT CURRENT_DATE,
+    notes TEXT,
+    FOREIGN KEY (jurisdiction_id) REFERENCES jurisdictions(jurisdiction_id)
+);
+INSERT INTO system_details VALUES(1,1,'FACTS','Family, Adult, and Child Tracking System','FACTS = Family, Adult, and Child Tracking System','Alabama''s comprehensive automated case management platform serving as the state''s SACWIS (Statewide Automated Child Welfare Information System). Consolidated 29 legacy systems into one standardized platform.','Child Welfare case management, Adult Protective Services, Foster Care tracking, Adoption services, Family support functions','Unified platform replacing 29 legacy systems; Standardized statewide practices; Data conversion from 9 major systems; Federal SACWIS compliance; Comprehensive case management',NULL,NULL,NULL,NULL,'Transitional (CCWIS)',NULL,NULL,NULL,'https://dhr.alabama.gov/directory/facts-family-adult-and-child-tracking-system/',NULL,'2026-01-12',NULL);
+INSERT INTO system_details VALUES(2,3,'GUARDIAN','GUARDIAN','GUARDIAN (name, not acronym)','Arizona DCS cloud-based case management and service delivery software. Implemented February 2021. Built on Microsoft Dynamics 365 platform. Serves 3,000+ DCS employees.','Child welfare case management, Service delivery tracking, Provider document management, Mandated reporter portal, Guardianship subsidy processing','Cloud-based platform; Provider portal for direct document upload; Mandated reporter secure web portal; Guardianship subsidy application processing; Integrated training curriculum',NULL,'Microsoft Dynamics 365 (dynamics365portals.us)',2021,NULL,'Development & Operational','3,557+ trained users (3,000+ DCS employees)',NULL,NULL,'https://guardian.dynamics365portals.us/; https://dcs.az.gov/; https://childwellbeing.asu.edu/content/guardian-program',NULL,'2026-01-12','Training developed by ASU Center for Child Well-Being: 10 in-person curricula, 11 online modules, 37 screen capture demos, 60 videos (377 min), 5 weeks training at 15 locations. Had data upload backlog issues post-launch that were corrected in 2023.');
+INSERT INTO system_details VALUES(3,2,'ORCA','Online Resource for the Children of Alaska','ORCA = Online Resource for the Children of Alaska','Alaska''s web-based SACWIS solution connecting geographically dispersed staff across 28 locations. Went live in 2005. Consolidated 7 separate databases into a single integrated system.','Child protection, Case management, Out-of-home care, Reunification, Adoption services, Foster parent payments','Web-based system; Real-time case record access; 7 database consolidation; Paper process elimination; Cultural tradition tracking for 231 federally recognized tribes; Tier 2 SACWIS compliant (2009)',NULL,'CGI web-based platform',2005,'CGI','Transitional (CCWIS modernization underway)','450+ staff in 28 locations',NULL,NULL,'https://www.cgi.com/us/en/media/case-study/operational-efficiencies-sacwis-orca-osc-alaska-office-of-childrens-services; https://github.com/AlaskaDHSS/ORCA-Modernization; https://dfcs.alaska.gov/ocs/Pages/services.aspx',NULL,'2026-01-12','Second web-based SACWIS to achieve federal compliance (after Wisconsin). Modernization to CCWIS using agile development and modular procurements.');
+INSERT INTO system_details VALUES(4,4,'CHRIS','Children''s Reporting and Information System','CHRIS = Children''s Reporting and Information System','Arkansas''s SACWIS system in use since 1997. Records child maltreatment reports and cases. The state attempted CCWIS modernization (ARfocus) with RedMane Technology but contract was terminated in August 2024.','Child maltreatment reporting, Case records management, Child Abuse Hotline integration, Foster care tracking','SACWIS compliant; Integrated Child Abuse Hotline (8,154 reports Q1 2025); Long-standing system (since 1997)',NULL,NULL,1997,NULL,'Transitional (CCWIS modernization failed, still using CHRIS)',NULL,NULL,NULL,'https://arkansasadvocate.com/2025/09/08/effort-to-upgrade-arkansas-child-welfare-computer-system-fails-after-two-years/; https://humanservices.arkansas.gov/wp-content/uploads/710-20-0041_CCWIS_RFP_v._2_.pdf; https://acf.gov/cb/training-technical-assistance/ccwis-status',NULL,'2026-01-12','ARfocus CCWIS project with RedMane Technology (started March 2022) terminated August 2024 due to failure to deliver viable product within scope, budget, and timeline.');
+INSERT INTO system_details VALUES(5,5,'CWS/CMS','Child Welfare Services / Case Management System','CWS/CMS = Child Welfare Services / Case Management System','California''s legacy child welfare system being replaced by CWS-CARES. CWS-CARES (Child Welfare Services – California Automated Response and Engagement System) is a $1.711 billion modernization project (50% federal funding) with V1 go-live planned October 2026.','Child welfare services case management, Federal reporting, County coordination','Legacy system serving all 58 counties; Being replaced by CWS-CARES CCWIS',NULL,NULL,NULL,NULL,'Non-CCWIS compliant (legacy)',NULL,NULL,NULL,'https://cwds.ca.gov/categories/CWS-CARES; https://lao.ca.gov/Publications/Report/5006; https://cwds.ca.gov/',NULL,'2026-01-12','CWS-CARES V1 (October 2026) replaces CWS/CMS with CCWIS compliance. V2 (April 2028) adds interfaces and data exchanges. Project cost $1.711B ($856M General Fund). Federal funding reduced from 50% to 26.5% due to non-CCWIS claiming status since Oct 2023.');
+INSERT INTO system_details VALUES(6,6,'TRAILS','TRAILS (not an acronym)','TRAILS is the system name','Colorado''s certified state-county SACWIS system implemented in 2001. Complex system evolved over 13+ years integrating 11 data systems from other child and family agencies. Supports ~1,000 structured and ad-hoc reports.','Child welfare case management, Federal reporting, Division of Youth Corrections services, Medicaid eligibility tracking','11 data system integrations; ~1,000 reports; ROM (Results Oriented Management) System; CDHS Community Performance Center (public e-data website); DYC module; Medicaid eligibility for 15,000+ children',NULL,NULL,2001,NULL,'Non-CCWIS (certified SACWIS)',NULL,NULL,NULL,'https://cdhs.colorado.gov/our-services/child-and-family-services/child-welfare/child-welfare-data-and-accountability; https://coloradocwts.com/trails-resource/; https://cdhs.colorado.gov/colorado-trails-user-group',NULL,'2026-01-12','Colorado Trails User Group (CTUG) formed July 2002, meets monthly. System rooted in outdated technology/architecture. Enhanced 2013-2014 with ROM System and public performance center.');
+INSERT INTO system_details VALUES(7,7,'LINK','LINK','LINK is the system name (not an acronym)','Connecticut DCF''s statewide automated child welfare information system. Used for case management and tracking. State is on federal performance improvement plan based on 2024-2025 CFSR review.','Child welfare case management, Child abuse/neglect reporting, Employee access control, Federal reporting','Statewide system for DCF; Employee access management',NULL,NULL,NULL,NULL,'Non-CCWIS',NULL,NULL,NULL,'https://portal.ct.gov/dcf; https://ctmirror.org/2025/09/09/federal-report-ct-dcf-children/',NULL,'2026-01-12','Connecticut missed federal benchmarks in 5 of 7 factors in latest CFSR review (July 2024 - March 2025). Placed on performance improvement plan. Audit findings about delayed termination of employee LINK access.');
+INSERT INTO system_details VALUES(8,8,'FOCUS','FOCUS','FOCUS is the system name','Delaware DSCYF (Department of Services for Children, Youth and Their Families) child welfare information system. Used by Division of Family Services for case management. Also referenced as FACTS (Family and Child Tracking System) in some documentation.','Child abuse investigation, Neglect and dependency cases, Treatment services, Foster care, Adoption, Independent living services','Case management for DFS; Policy and procedure integration; Service provision tracking',NULL,NULL,NULL,NULL,'Development & Operational (CCWIS)',NULL,NULL,NULL,'https://kids.delaware.gov/; https://kids.delaware.gov/family-services/; https://kids.delaware.gov/policies/dfs-policies/',NULL,'2026-01-12','DSCYF has three divisions: Division of Family Services (DFS), Division of Prevention and Behavioral Health Services (DPBHS), Division of Youth Rehabilitative Services (YRS). Child Abuse Hotline: 1-800-292-9582.');
+INSERT INTO system_details VALUES(9,51,'FACES.NET','FACES.NET','FACES = Family and Child Electronic System (web-based version)','District of Columbia''s SACWIS managed by Child and Family Services Agency (CFSA). DC was first jurisdiction nationally to gain federal approval of a web-based SACWIS (2007). Originally server-based FACES, converted to web-based FACES.NET in 2007.','Child welfare case management, Child abuse reporting, Federal statistical reporting to DHHS, Pre-service training integration','First federally-approved web-based SACWIS in the nation (2007); One of first 8 jurisdictions to achieve SACWIS approval (2005); Integrated training portal with STAAND; Pre-service training curriculum',NULL,NULL,2005,NULL,'Transitional (CCWIS)',NULL,NULL,NULL,'https://cfsa.dc.gov/page/facesnet-resources-and-information; https://cfsa.dc.gov/; https://cfsa.dc.gov/page/facesnet-training',NULL,'2026-01-12','CFSA headquarters: 200 I Street SE, Washington DC 20003. Child abuse hotline: (202) 671-SAFE (671-7233). FACES.NET correlates with CFSA business processes.');
+INSERT INTO system_details VALUES(10,9,'FSFN','Florida Safe Families Network','FSFN = Florida Safe Families Network','Florida DCF''s statewide SACWIS serving as the official record for all child abuse investigations and case management. Used by Abuse Hotline, Child Protective Investigators, CBC Case Managers, Adult Protective Investigators, Legal staff, Licensing staff, and DCF Administration.','Child protective investigations, Case management, Abuse hotline records, Placement tracking, Foster care payments, Adoption subsidies, Independent living subsidies, Judicial reviews','Official case file per FL Admin Code 65C-30; Historical abuse records; Placement information; Educational/medical info; Missing children reporting; Management reports; Family assessment; Payment processing (since July 2011)',NULL,NULL,NULL,NULL,'Transitional (CCWIS modernization funded)',NULL,NULL,NULL,'https://www.myflfamilies.com/kids/florida-safe-families-network; https://kids.myflfamilies.com/fsfn; https://www.myflfamilies.com/document/10911',NULL,'2026-01-12','Over $50M funding for FSFN modernization to CCWIS. Current system on older technology, limited mobile/tablet access. Integrated tightly with legacy systems.');
+INSERT INTO system_details VALUES(11,10,'SHINES','Georgia SHINES','SHINES = Statewide Health Information Network for Electronic Services (informal interpretation)','Georgia''s web-based statewide automated child welfare information system. Built by Accenture, deployed statewide June 2008 after Douglas County pilot. Serves as the legal case record of the State of Georgia.','Child protective services case management, Foster care tracking, Adoptions, Federal/state reporting, Data collection','Web-based system; Statewide deployment; Legal case record; Cross-county data sharing; Real-time data tracking; Integrated with Georgia Communicare portals (launched 2024)',NULL,NULL,2008,'Accenture','Transitional (CCWIS)',NULL,NULL,NULL,'https://dfcs.georgia.gov/about-us; https://www.govtech.com/pcio/georgia-centralizes-child-welfare-system-database.html; https://dhs.georgia.gov/press-releases/2024-05-23/dhs-celebrates-national-foster-care-month-launch-new-child-welfare',NULL,'2026-01-12','Georgia Communicare launched May 2024 - web portals linking caseworkers, CASA volunteers, foster parents, biological parents. System nearly 2 decades old, replacement estimated at $50M. 2024 budget includes $3.1M for upgrades.');
+INSERT INTO system_details VALUES(12,11,'SHAKA','SHAKA','SHAKA is the system name','Hawaii Department of Human Services Child Welfare Services information system. Limited public documentation available about the technical system.','Child protection services, Prevention/diversion services, Foster care, Adoption, Legal guardianship','Supports CWS Branch operations; Multi-island service delivery (Oahu and neighbor islands)',NULL,NULL,NULL,NULL,'Non-CCWIS',NULL,NULL,NULL,'https://humanservices.hawaii.gov/ssd/home/child-welfare-services/',NULL,'2026-01-12','Child abuse/neglect hotline (Oahu): 808-832-5300. Neighbor islands: 1-888-380-3088. Child trafficking: 808-832-1999. All available 24/7.');
+INSERT INTO system_details VALUES(13,13,'ICWS','Illinois Child Welfare System (legacy) / IllinoisConnect (new CCWIS)','ICWS = Illinois Child Welfare System; being replaced by IllinoisConnect','Illinois DCFS is transitioning from legacy SACWIS to IllinoisConnect, a web-based CCWIS with modern features including AI-powered tools, analytics, and automation.','Child welfare case management, Abuse/neglect investigation, Foster care, Adoptions, Federal reporting','IllinoisConnect features: Intelligent Case Notes Search; Children360 Analytic Tool (daycare deserts, potential foster homes); Child Welfare Insights Tool (real-time public data); Workload Automation Tool (bots for repetitive tasks); Learning and Development Center; Immersive Learning Tool (virtual scenarios); SAFE practice model',NULL,NULL,NULL,NULL,'Non-CCWIS (transitioning to IllinoisConnect CCWIS)',NULL,NULL,NULL,'https://dcfs.illinois.gov/for-providers/illinoisconnect.html; https://dcfs.illinois.gov/for-providers/dashboard-reports-and-statistics/dashboard-il-child-welfare-insights-tool.html',NULL,'2026-01-12','IllinoisConnect incorporates Safety Assessment and Family Evaluation (SAFE) practice model. Uses automation bots to reduce manual work.');
+INSERT INTO system_details VALUES(14,15,'JARVIS','Joining Applications and Reports from Various Information Systems','JARVIS = Joining Applications and Reports from Various Information Systems','Iowa''s web-based child welfare information system application implemented January 1, 2014. Part of Iowa HHS (Health and Human Services) Child Welfare Information System.','CINA referrals processing, Child welfare services documentation, Foster care placement tracking, Service date recording, Child abuse registry','Web-based application; Integrated with Child Abuse Registry; Supports Child Protection Workers (CPW); CINA (Child in Need of Assistance) processing',NULL,NULL,2014,NULL,'Transitional (CCWIS)',NULL,NULL,NULL,'https://hhs.iowa.gov/programs/CPS; https://hhs.iowa.gov/',NULL,'2026-01-12','Iowa Abuse Hotline: 800-362-2178 (24/7). In May 2017, Iowa contracted with Child Welfare Policy and Practice Group for system review.');
+INSERT INTO system_details VALUES(15,16,'FACTS','Family And Children Tracking System','FACTS = Family And Children Tracking System','Kansas DCF child welfare information system containing abuse/neglect investigation outcomes, child abuse central registry, foster care and adoption information. Based on 20th-century technology.','Abuse/neglect investigation records, Child abuse central registry, Foster care tracking, Adoption information, Department budgeting, Federal/state reporting','Central registry maintenance; Investigation outcome tracking; Supports 35+ DCF service centers statewide',NULL,NULL,NULL,NULL,'Non-CCWIS (CCWIS replacement announced July 2025)',NULL,NULL,NULL,'https://www.dcf.ks.gov/; https://www.ksnt.com/news/local-news/kansas-dcf-announces-new-100m-child-welfare-system/',NULL,'2026-01-12','July 2025: Kansas awarded 3 contracts for new CCWIS to consolidate legacy systems. Project cost: $100M over 4 years (50% state, 50% federal IV-E). Foster care need down 26% since 2019. 36% children placed with relatives.');
+INSERT INTO system_details VALUES(16,17,'TWIST','The Workers Information SysTem','TWIST = The Workers Information SysTem','Kentucky Cabinet for Health and Family Services child welfare information system. Contains reports of suspected child abuse/neglect, investigation records, findings, and extensive family history data. Access strictly limited by KRS 620.050.','Child abuse/neglect investigation, Case plan maintenance, Adult protective services, Criminal background integration, Mental health records, Substance use history','Integration with Collaborate software via Investigation Feature; Automatic routing of investigation data to regional advocates; Strict access controls per KRS 620.050',NULL,NULL,NULL,NULL,'Transitional (CCWIS)',NULL,NULL,NULL,'https://www.chfs.ky.gov/; https://www.collaboratesoftware.com/news/data-integration-combat-child-abuse-statewide/',NULL,'2026-01-12','2024: Kentucky moved ombudsman office from Cabinet to State Auditor per SB 48 (2023) for independent oversight. Access dispute between Cabinet and Auditor over TWIST access.');
+INSERT INTO system_details VALUES(17,18,'ACCESS','ACCESS','ACCESS is the system name','Louisiana DCFS child welfare information system. Limited public documentation on technical details. DCFS works to protect children against abuse and neglect and find permanent homes for foster children.','Child protective services investigation, Prevention services, Foster care, Child abuse reporting, Safe Haven Law education','Supports CPS and Prevention Services goals; CAFÉ online portal for child support case information',NULL,NULL,NULL,NULL,'Non-CCWIS',NULL,NULL,NULL,'https://dcfs.louisiana.gov/page/child-welfare; https://dcfs.louisiana.gov/',NULL,'2026-01-12','Child abuse hotline: 1-855-4LA-KIDS (1-855-452-5437) - 24/7. CAFÉ portal for child support case access.');
+INSERT INTO system_details VALUES(18,12,'ESPI','Ensuring Safety and Permanency in Idaho','ESPI = Ensuring Safety and Permanency in Idaho','Idaho DHW CCWIS-compliant child welfare technology solution built on cloud-native Microsoft Dynamics 365 and Microsoft Power Platform. Deployed by Deloitte in 24 months with three releases—on time and on budget. $30M contract over 3 years.','Intake processing, Child welfare case management, Caseworker portal, Resource family portal, Data-driven decision making','FedRAMP-compliant government cloud; Microsoft Azure services; Human-centered design; Agile methodology; Phased implementation; Mobile access; Caseworker portal; Resource Family Portal; Deloitte child welfare modules',NULL,'Microsoft Dynamics 365, Microsoft Power Platform, Microsoft Azure, FedRAMP Government Cloud',2021,'Deloitte','Development & Operational (CCWIS)',NULL,NULL,NULL,'https://www.deloitte.com/us/en/services/consulting/case-studies/idaho-dept-health-welfare-case-study.html; https://espi.powerappsportals.us/',NULL,'2026-01-12','Resource Family Portal: https://espi.powerappsportals.us/ - gives foster families access to license info, children in care, and resources.');
+INSERT INTO system_details VALUES(19,14,'KIDTRAKS','KIDTRAKS (legacy) / CCWIS (Salesforce)','KIDTRAKS = legacy system; replaced by Salesforce-based CCWIS','Indiana DCS modernized from legacy KIDTRAKS to Salesforce-based CCWIS. INvest project launched in 2 years vs 7 years planned, at 21% of original budget. First state to support NEICE (National Electronic Interstate Compact Enterprise) requirements.','Child welfare case management, Child support services, Intake/assessment/investigation, Risk management, Referral management, Eligibility determination, Data analytics','Salesforce 360 Platform for Government (FedRAMP-authorized); MuleSoft Anypoint Platform for API integration; Tableau for data analytics; AWS backend for storage/analytics; DocuSign CLM integration; 12+ core functional modules; Real-time interstate case transfers (NEICE)',NULL,'Salesforce 360 Platform, MuleSoft Anypoint, Tableau, AWS, DocuSign CLM',2020,'WRMA (implementation lead), Salesforce, MuleSoft','Transitional (CCWIS)',NULL,NULL,NULL,'https://www.salesforce.com/customer-success-stories/state-of-indiana-department/; https://www.mulesoft.com/case-studies/api/indiana-department-child-services; https://wrma.com/portfolio-item/indiana-department-of-child-services-chooses-wrma-to-implement-a-new-integrated-child-welfare-data-system/',NULL,'2026-01-12','Survey/questionnaire compliance jumped from 20-30% to 100% post-implementation. First state agency to support NEICE for real-time interstate case transfers.');
+INSERT INTO system_details VALUES(20,19,'MACWIS','Maine Automated Child Welfare Information System (replaced by Katahdin)','MACWIS = Maine Automated Child Welfare Information System','Maine''s legacy SACWIS system, nearly 20 years old, replaced by Katahdin in January 2022. Katahdin developed by Deloitte for ~$30M. Reports of functionality issues with new system leading to Government Oversight Committee recommendations.','Child welfare case documentation, Intake hotline records, Investigation tracking, Case management','Replaced legacy system (MACWIS); Contractors submit information through system',NULL,NULL,2022,'Deloitte (Katahdin replacement)','Transitional (CCWIS) - Katahdin in use',NULL,NULL,NULL,'https://mainemorningstar.com/2024/03/20/software-meant-to-improve-maines-broken-child-welfare-system-reportedly-making-it-worse/; https://www1.maine.gov/dhhs/ocfs/cw/policy/xiii_-c_-ocfs-child-welfare-do.html',NULL,'2026-01-12','Child abuse hotline: 1-800-452-1999 (24/7). Katahdin replacement went live January 2022. Government Oversight Committee investigating system issues and recommending fixes.');
+INSERT INTO system_details VALUES(21,20,'CLAIMS','CLAIMS','CLAIMS is the system name','Maryland Department of Human Services child welfare information system. Used for tracking child welfare outcomes and supporting CCWIS data collection. Monthly data submissions from local departments.','Child protective services, Child welfare outcome tracking, Family support services, Teaming support monitoring','CCWIS data collection; Monthly data submissions from local departments; Headline indicators tracking; Family separation teaming support (improved from 30% to 60%)',NULL,NULL,NULL,NULL,'Development & Operational (CCWIS)',NULL,NULL,NULL,'https://dhs.maryland.gov/child-protective-services/; https://www.aspe.hhs.gov/sites/default/files/documents/561fd28728e59766b3af4d18d0e6dffe/Maryland-Well-Being-Case-Study.pdf',NULL,'2026-01-12','DHS connects families to food/cash assistance, workforce development, child welfare/protective services.');
+INSERT INTO system_details VALUES(22,21,'FAMILYNET','FamilyNet / iFamilyNet','FamilyNet = Family Network information system','Massachusetts DCF statewide automated child welfare information system. Originally implemented February 1998. Moved to web-based iFamilyNet (iFN) in 2009. System of record for DCF serving ~48,000 children annually.','Intake, Investigation, Assessment, Clinical/case management, Adoption services, Financial services, Legal services, Provider services, Healthcare records','Web-based (iFamilyNet since 2009); Placement history tracking; Address history for children/adults; Healthcare records upload; Medical social workers (29) update records; Integration with medical passport information',NULL,NULL,1998,NULL,'Non-CCWIS',NULL,NULL,NULL,'https://www.mass.gov/orgs/massachusetts-department-of-children-families; https://www.mass.gov/info-details/audit-of-the-department-of-children-and-families-overview-of-audited-entity',NULL,'2026-01-12','DCF budget: ~$1.05B (FY2020), ~$1.09B (FY2021). Serves children ages 0-21. Since May 2016, 29 medical social workers (one per local office) maintain healthcare records in iFN.');
+INSERT INTO system_details VALUES(23,22,'MiSACWIS','Michigan Statewide Automated Child Welfare Information System','MiSACWIS = Michigan Statewide Automated Child Welfare Information System','Michigan''s statewide comprehensive case management system for child welfare and juvenile justice. Soft launched April 30, 2014. Being replaced by cloud-based CCWIS system.','Children''s Protective Services (CPS), Foster care case management, Adoption case management, Juvenile justice services, Real-time data sharing','Real-time online data sharing; Secure access via desktop, laptop, mobile devices; Public and private staff access; MILogin authentication; Annual access renewal via DSA form',NULL,NULL,2014,NULL,'Transitional (CCWIS replacement underway)','7,000+ public and private staff users',NULL,NULL,'https://www.michigan.gov/mdhhs/inside-mdhhs/newsroom/2014/04/30/misacwis-soft-launches-april-30; https://www.michigan.gov/mdhhs/adult-child-serv/childrenfamilies/tts/building-systems/child-welfare',NULL,'2026-01-12','CCWIS replacement expected to provide: improved data collection, data-driven decision making, program performance assessment, federal compliance. Accessed via MILogin system.');
+INSERT INTO system_details VALUES(24,23,'SSIS','Social Services Information System','SSIS = Social Services Information System','Minnesota''s statewide data entry and case management system used for child welfare and other human service programs. Phase 1 implemented statewide in 1997. Expanded from child welfare to include adult protective services.','Child welfare case management, Maltreatment reports, Out-of-home placement plans, Adoption information, Adult protective services, Time entry, Case notes','Started as child welfare, expanded to adult services; Supports over 10,000 state and county workers; Life of the case model training; SSIS Business and Training Section support',NULL,NULL,1997,NULL,'Transitional (CCWIS modernization planned)','10,000+ state and county workers',NULL,NULL,'https://mnchildwelfaretraining.com/more/ssis-training/; https://minnesotadcyf.us.engagementhq.com/ssis-engagement-and-information; https://www.startribune.com/minnesotas-archaic-technology-wastes-critical-social-service-case-worker-time-counties-say/600354761',NULL,'2026-01-12','System 25+ years old, described as "archaic". Governor Walz proposed $15M for updates; full replacement estimated at $80-100M. New DCYF CCWIS will replace SSIS child welfare tool.');
+INSERT INTO system_details VALUES(25,24,'MACWIS I','Mississippi Automated Child Welfare Information System','MACWIS = Mississippi Automated Child Welfare Information System','Mississippi''s SACWIS used by Division of Family and Children Services and Mississippi Department of Child Protection Services (MDCPS). MDCPS established as standalone agency in 2016.','Child welfare case management, Training workshop tracking, Child Welfare Professional Development tests, Investigation records','Used across all 82 Mississippi counties; Training workshop coordination; Test score entry',NULL,NULL,NULL,NULL,'Non-CCWIS','1,200+ frontline caseworkers, adoption/licensure specialists, supervisors',NULL,NULL,'https://www.mdcps.ms.gov/; https://www.mdhs.ms.gov/',NULL,'2026-01-12','MDCPS separated from MDHS in 2016 by Mississippi Legislature. MDCPS has offices in all 82 counties plus Jackson State Office.');
+INSERT INTO system_details VALUES(26,25,'FACES','Family And Children Electronic System','FACES = Family And Children Electronic System','Missouri''s SACWIS used for Title IV-E reporting by Children''s Division. Being replaced by MOFACS (Missouri Family And Children System), a mobile-accessible CCWIS.','Child welfare case management, Background check tracking, Abuse/neglect history review, Title IV-E reporting','Background screening date entry; Supervisor review of abuse/neglect history; Supports placement and licensure decisions',NULL,NULL,NULL,NULL,'Transitional (MOFACS CCWIS replacement in development)',NULL,NULL,NULL,'https://mydss.mo.gov/cd/ccwis; https://dss.mo.gov/cd/',NULL,'2026-01-12','MOFACS (new CCWIS) accessible on approved mobile devices. Children''s Division: 2015 Jefferson St, PO Box 88, Jefferson City, MO 65103. Phone: 573-522-8024. General DSS: 1-855-373-4636.');
+INSERT INTO system_details VALUES(27,26,'CAPS','CAPS','CAPS is the system name','Montana DPHHS Child and Family Services Division information system. Used for entering CPS cases, tracking client history, and managing child protection investigations.','CPS case entry, Client tracking via CAPS ID, Prior history search, Investigation management, Report tracking','CAPS ID assignment for client tracking; SEAL (See All Client Information) screen; RRRL report display; Prior history search for active investigations; Legacy data conversion support',NULL,NULL,NULL,NULL,'Non-CCWIS',NULL,NULL,NULL,'https://dphhs.mt.gov/CFSD/; https://dphhs.mt.gov/cfsd/cfsdmanual',NULL,'2026-01-12','CFSD mission: protect children at risk of abuse, neglect, or abandonment. Services funded by federal and state dollars. Legacy records from pre-CAPS era require county contact for retrieval.');
+INSERT INTO system_details VALUES(28,27,'N-FOCUS','Nebraska Family Online Client User System','N-FOCUS = Nebraska Family Online Client User System','One of Nebraska''s largest integrated government systems supporting child welfare and up to 30 different programs. Supports DHHS and contracted employees across the state.','Child welfare case management, Foster care tracking, AFCARS/NCANDS federal reporting, COMPASS outcome measures, Multi-program support (up to 30 programs)','Integrated system supporting 30+ programs; COMPASS (Children''s Outcomes Measured in Protection and Safety Statistics) reporting; AFCARS/NCANDS data generation; Federal outcome measures tracking',NULL,'Db2 (650+ tables, 1.7 billion rows), SQL Server',NULL,NULL,'Non-CCWIS','2,500+ workers (offices statewide, 4 customer service centers, centralized scanning facility)',NULL,NULL,'https://dhhs.ne.gov/Pages/N-FOCUS-Release-Notes.aspx; https://dhhs-cfscompass.ne.gov/CFSCompass/pages/help/about.xhtml; https://www.ketv.com/article/nebraskas-child-welfare-system-not-tapping-into-federal-funds/45657839',NULL,'2026-01-12','Database has 650+ tables, 785+ relationships, 1,278 indexes, 9,665+ attributes, 1.7B rows. COMPASS tracks federal measures including reunification, permanency, and safety composites.');
+INSERT INTO system_details VALUES(29,28,'UNITY','Unified Nevada Information Technology for Youth','UNITY = Unified Nevada Information Technology for Youth','Nevada DCFS statewide legacy child welfare and juvenile justice case management system. Operational since September 2003. Modernization underway with KPMG conducting needs assessment (contract signed April 2024).','Child welfare case management, Juvenile justice case management, Case records repository, State-affiliated entity access','Official case records repository; Child welfare and juvenile justice integration; Hybrid administrative structure; UDEM (UNITY Data Exchange Modernization) project for ESB/API gateway; Cloud-based CCWIS transition planned',NULL,NULL,2003,'KPMG LLP (modernization assessment)','Transitional (CCWIS modernization in progress)','1,600+ users from State-affiliated entities',NULL,NULL,'https://dcfs.nv.gov/Programs/UNITY/UNITY/; https://dcfs.nv.gov/uploadedFiles/dcfsnvgov/content/Programs/UNITY/UNITY_Modernization_PublicMeeting_07182024_a.pdf',NULL,'2026-01-12','UNITY modernization approved 2019. KPMG contract April 2024 for needs assessment. Project kick-off May/June 2024. UDEM project implements ESB and API gateway for data exchanges.');
+INSERT INTO system_details VALUES(30,29,'BRIDGES','NH BRIDGES','BRIDGES = NH BRIDGES (full acronym meaning not specified)','New Hampshire''s client-server SACWIS application automating child welfare and juvenile justice case workflow. Fully compliant with federal requirements since 2009. In production for 12+ years, may need re-platforming.','Child welfare case management, Juvenile justice services, Foster care tracking, Placement agency tracking, Exit date tracking, ROM database integration','Client-server application; Identifies status, demographics, case plan goals, location of every foster child; Captures placement/exit dates; ROM (Results Oriented Management) database integration; Federally compliant since 2009',NULL,NULL,NULL,NULL,'Transitional (CCWIS)',NULL,NULL,NULL,'http://nhdcyf.info/nhbridges/index.html; https://www.dhhs.nh.gov/dcyf/',NULL,'2026-01-12','DCYF is designated Title IV-B agency. Division Director reports to DHHS Associate Commissioner. System needs "re-platforming" after 12+ years in production.');
+INSERT INTO system_details VALUES(31,30,'NJ SPIRIT','New Jersey Statewide Protective Investigation, Reporting and Information Tool','NJ SPIRIT = New Jersey Statewide Protective Investigation, Reporting and Information Tool','New Jersey DCF''s primary SACWIS for case practice. Comprehensive automated case management integrating various aspects of case practice statewide. Integrated with SafeMeasures data warehouse for analytics.','Child welfare case management, Child abuse investigation, Foster care, Adoption services, Federal reporting','Comprehensive statewide integration; SafeMeasures data warehouse integration; Tracking by worker/supervisor/office/county; Performance and trend analysis; Training via OTPD',NULL,NULL,NULL,NULL,'Transitional (CCWIS)','~6,600 DCF staff',NULL,NULL,'https://www.nj.gov/dcf/about/divisions/opma/cqi.html; https://njchilddata.rutgers.edu/',NULL,'2026-01-12','DCF is NJ''s first Cabinet-level agency for at-risk children/families. CP&P (Child Protection and Permanency) is child welfare agency within DCF. Training provided through Office of Training and Professional Development (OTPD).');
+INSERT INTO system_details VALUES(32,31,'FACTS','Family Automated Client Tracking System','FACTS = Family Automated Client Tracking System','New Mexico CYFD''s SACWIS system. Meets federal NCANDS and AFCARS reporting requirements. Functionality limitations make modifications cumbersome and costly. Being replaced by new CCWIS.','Child welfare case management, NCANDS/AFCARS federal reporting, Performance monitoring, Quality assurance tracking','97.81% monthly visit compliance tracked; County and statewide data reports; QA assessment tools in development',NULL,NULL,NULL,NULL,'Non-CCWIS (CCWIS replacement in development)',NULL,NULL,NULL,'https://www.cyfd.nm.gov/; https://www.nmlegis.gov/Handouts/ALFC 061124 Item 6 LegisStat - New Mexico Child Welfare System.pdf',NULL,'2026-01-12','NM child maltreatment rate 12.7 per 1,000 children (2022) vs national 7.7. NM ranked 50th in nation for child well-being (2023 Kids Count). New CCWIS being built to replace FACTS.');
+INSERT INTO system_details VALUES(33,32,'CONNECTIONS','CONNECTIONS','CONNECTIONS is the system name','New York OCFS statewide automated child welfare information system connecting all 58 local social services districts and voluntary organizations. Development began 1995; OCFS took responsibility 1997.','Child protective services, Preventive services, Foster care, Adoption services, Statewide Central Register of Child Abuse and Maltreatment','Connects 58 local social services districts; Integrates state, county, voluntary agencies; Single statewide system; Online training resources and job aids',NULL,NULL,1995,NULL,'Transitional (CCWIS)',NULL,NULL,NULL,'https://ocfs.ny.gov/connect/; https://ocfs.ny.gov/programs/cwcs/; https://en.wikipedia.org/wiki/New_York_State_Office_of_Children_and_Family_Services',NULL,'2026-01-12','NYS is state-supervised, county-administered. Services delivered through 57 LDSSs, 5 NYC boroughs, St. Regis Mohawk Tribe. OCFS operates juvenile justice residential facilities.');
+INSERT INTO system_details VALUES(34,33,'NC FAST / PATH NC','NC FAST (North Carolina Families Accessing Services through Technology) / PATH NC (Partnership and Technology Hub for North Carolina)','NC FAST = North Carolina Families Accessing Services through Technology; PATH NC = Partnership and Technology Hub for North Carolina','NC transitioning from NC FAST to PATH NC (launched June 2025 in 15 counties). Previous NC FAST child welfare component cost ~$120M and was abandoned. PATH NC developed by Deloitte for $65M.','Intake, Assessment, In-home services, Foster care, Adoption, Financials, Licensing, Eligibility','Unified statewide system (first time for all 100 counties); Future integration with Medicaid, DPI; Real-time data; Decision-making tools; Replaces paper/manual processes in ~50% of counties',NULL,NULL,2025,'Deloitte','Non-CCWIS (PATH NC deployment in progress)',NULL,NULL,NULL,'https://www.ncdhhs.gov/news/press-releases/2025/06/18/ncdhhs-launches-path-nc-statewide-child-welfare-information-system-support-better-outcomes-children; https://www.northcarolinahealthnews.org/2025/06/19/nc-launches-path-nc-system-to-track-child-welfare-cases/',NULL,'2026-01-12','PATH NC launched 15 counties June 2025, all 100 by 2026. NC FAST child welfare abandoned after $120M spent (2015-2023). Fostering Care in NC Act signed June 2025 by Gov. Stein.');
+INSERT INTO system_details VALUES(35,34,'FRAME','FRAME','FRAME is the system name','North Dakota DHS child welfare case management system used with CCWIPS applications. Together represent the state''s child welfare information system. Available statewide to caseworkers, supervisors, directors, administrators.','CPS case management, In-home services, Foster care, Pre-adoptive placement, Report logging, Case assignment','Available 24/7 (except maintenance); New intake form for consistent reporting; Integrates with Court CMS database; Dual status youth identification',NULL,NULL,NULL,NULL,'Non-CCWIS',NULL,NULL,NULL,'https://apps.nd.gov/dhs/cfs/frame/login.htm; https://fosteringchamps.org/wp-content/uploads/2020/06/North-Dakota-2020-2024-cfsp-report.pdf',NULL,'2026-01-12','CPS Intake Unit logs reports into FRAME with new intake form. Cases transferred to local CPS supervisor in county where child is located. ND DHS has program supervision responsibility.');
+INSERT INTO system_details VALUES(36,35,'OHIO SACWIS','Statewide Automated Child Welfare Information System','SACWIS = Statewide Automated Child Welfare Information System','Ohio ODJFS web-based SACWIS serving as state''s child welfare system of record. Automates case management and expedites communication among 88 county PCSAs, state, and private sector.','Child welfare case management, AFCARS/NCANDS federal reporting, Workload management, Data-driven decision making, Inter-agency communication','Web-based 24/7 availability; 88 county PCSA integration; Title IV-E Juvenile Courts access; Private Network Agency access; Northwoods Traverse document management integration; OnBase integration',NULL,NULL,NULL,NULL,'Transitional (CCWIS)','8,700+ users (caseworkers, PCSAs, courts, private agencies)',NULL,NULL,'https://sacwis.ohio.gov/; https://www.teamnorthwoods.com/resources/northwoods-and-ohio-department-of-job-and-family-services-child-welfare/',NULL,'2026-01-12','Information confidential per Ohio Public Records Act (RC 149.43) and RC 1347.08. Access: sacwis.ohio.gov/sacwis/loginEntry.jsp');
+INSERT INTO system_details VALUES(37,36,'OK KIDS','KIDS (Oklahoma''s Child Welfare System)','KIDS = OK KIDS child welfare system','Oklahoma had the first federally certified Statewide Automated Child Welfare Case Management System in the nation when it instituted the KIDS system in 1995. Administered by OKDHS.','Child Protective Services, Foster care, Adoption services, Oklahoma Children''s Services (OCS) community-based programs','First federally certified SACWIS in nation (1995); Supports prevention and intervention services; Community-based contracted services (OCS)',NULL,NULL,1995,NULL,'Transitional (CCWIS)',NULL,NULL,NULL,'https://oklahoma.gov/okdhs/services/child-welfare-services.html; https://oklahoma.gov/okdhs/services/cps/cps-program-information.html',NULL,'2026-01-12','Abuse/Neglect Hotline: 1-800-522-3511 (24/7). Child Welfare Services: PO Box 25352, Oklahoma City, OK 73125.');
+INSERT INTO system_details VALUES(38,37,'OR-KIDS','OR-Kids','OR-Kids = Oregon Kids system','Oregon DHS case management system being updated to meet federal CCWIS regulations. In July 2018, DHS formally chose to transition OR-Kids to CCWIS compliance. Development using agile methodology.','Child abuse/neglect investigation, Family safety planning, Foster care, Adoption, Behavior rehabilitation services, Independent living services','CCWIS transition underway; Agile development methodology; Data quality plan submitted to ACF (August 2019); 8 new business analyst positions; 8 new OIS positions for development',NULL,NULL,2018,NULL,'Transitional (CCWIS transition)',NULL,NULL,NULL,'https://sos.oregon.gov/audits/Documents/2020-01.pdf; https://www.oregon.gov/odhs/agency/pages/cw.aspx',NULL,'2026-01-12','CCWIS declaration made August 1, 2018. Project manager position unfilled as of Nov 2019. OIS project solutions team new to large agile projects.');
+INSERT INTO system_details VALUES(39,38,'CWIS','Child Welfare Information Solution','CWIS = Child Welfare Information Solution','Pennsylvania statewide system working with 6 different county systems across 67 counties. CWIS handles intake and referral (ChildLine). DHS working on Enterprise Case Management (ECM) to unify systems.','Intake and referral (ChildLine), PA Child Abuse History Certification, Mandated reporter abuse reporting, County integration','Self-service portal for abuse clearances; Online mandated reporter system; Planned ECM integration; Target to unify 67 county systems',NULL,NULL,2012,NULL,'Transitional (CCWIS - ECM in development)',NULL,NULL,NULL,'https://www.pa.gov/agencies/dhs/departments-offices/ocyf-info/cwis; https://www.compass.dhs.pa.gov/CWIS/Public/Home; https://jsg.legis.state.pa.us/resources/documents/ftp/publications/2022-04-14 (2021 HR119) Final REPORT 4.13.22 .pdf',NULL,'2026-01-12','67 counties use 6 different systems + CWIS. ECM (Enterprise Case Management) planned to unify all. CW CM (Child Welfare Case Management) target start 2023, delayed by COVID.');
+INSERT INTO system_details VALUES(40,52,'SIMCa','Sistema Integrado de Manejo de Casos','SIMCa = Sistema Integrado de Manejo de Casos (Integrated Case Management System)','Puerto Rico ADFAN (Administration of Families and Children) case management system. Facilitates staff management of maltreatment referral investigations and child protection cases. Includes Security Model for evaluating child safety.','Maltreatment referral investigation, Child protection case management, Statistical data collection, Safety assessment, Supervision of services','Single automated system; Safety Model integration; Response time establishment; Social worker intervention tracking; Reports and statistical data access; Advisory and Support Committee oversight',NULL,NULL,NULL,NULL,'Non-CCWIS',NULL,NULL,NULL,'https://adfan.pr.gov/Documents/Child and Family Services Plan 2020 - 2024 (CFSP).pdf; https://adfan.pr.gov/AdministracionesAuxiliares/CuidadoSustitutoAdopcion/SIMCa NEW/2025 - Qué es SIMCa.pdf',NULL,'2026-01-12','Puerto Rico first territory with Family First Prevention Plan approved by Children''s Bureau (2024). Data quality cleanup ongoing from paper/legacy conversion. Technical vocabulary caused user confusion.');
+INSERT INTO system_details VALUES(41,39,'RICHIST','Rhode Island Children''s Information System','RICHIST = Rhode Island Children''s Information System','Rhode Island DCYF automated information system for recording work on behalf of clients and state. Tracks reports/investigations of child abuse and neglect. System is 23+ years old, replacement vendor selection in progress.','Case documentation, Child abuse/neglect report tracking, Investigation records, NCANDS/AFCARS/NYTD federal reporting, Administrative decision support','Required documentation method; Integrated services; Federal data reporting (NCANDS, AFCARS, NYTD); Performance assessment support',NULL,NULL,NULL,NULL,'Transitional (CCWIS replacement in procurement)',NULL,NULL,NULL,'https://datadcyf.ri.gov/policyregs/rhode_island_children_s_information_system__richist_.htm; https://dcyf.ri.gov/',NULL,'2026-01-12','System 23+ years old, replacement scheduled FY2025-FY2026. Vendor selection in progress (as of March 2024). DCYF has 3 divisions: Children''s Behavioral Health, Child Welfare, Youth Development Services.');
+INSERT INTO system_details VALUES(42,40,'CAPSS','CAPSS','CAPSS is the system name','South Carolina DSS child welfare case management system. DSS provides protective services for children and vulnerable adults, adoption, foster care, and administers Title IV-B and IV-E programs.','Child abuse/neglect investigation, Assessment process (24hr start, 45 day completion), Foster care, Adoption, Family preservation, Case management','Investigation within 24 hours; Assessment completion in 45 days (+15 day extension); Indicated/unfounded case classification',NULL,NULL,NULL,NULL,'Transitional (CCWIS)',NULL,NULL,NULL,'https://dss.sc.gov/; https://scchildren.org/reporting-child-abuse-neglect/',NULL,'2026-01-12','DSS promotes safety, permanency, well-being of children and vulnerable adults. National Child Welfare Workforce Institute has reviewed SC DSS staffing, training, turnover, caseloads.');
+INSERT INTO system_details VALUES(43,41,'FACIS','Family and Children Information System','FACIS = Family and Children Information System','South Dakota DSS child welfare system providing real-time data. Used by Child Protection Services and Office of Licensing and Accreditation for foster/adoptive parent recruitment planning.','Real-time child welfare data, Foster/adoptive parent recruitment support, Sibling placement tracking (not fully implemented)','Real-time data availability; Recruitment plan development support; CPS case management',NULL,NULL,NULL,NULL,'Transitional (CCWIS)',NULL,NULL,NULL,'https://dss.sd.gov/childprotection/; https://dss.sd.gov/',NULL,'2026-01-12','Child abuse/neglect hotline: 877.244.0864 (8am-5pm M-F). After hours contact local law enforcement. 815 basic foster homes licensed as of May 2024.');
+INSERT INTO system_details VALUES(44,42,'TFACTS','Tennessee Family and Child Tracking System','TFACTS = Tennessee Family and Child Tracking System','Tennessee DCS SACWIS for CPS, Foster Care, Juvenile Justice, Foster/Adoptive Homes, Adoption Case Files. N-tier architecture with Oracle databases. CMA selected May 2023 for modernization. CCWIS/C-FIRST replacement planned October 2026.','CPS case management, Foster care, Juvenile justice, Foster/adoptive home licensing, Adoption services, 12 regional service delivery','N-tier architecture (Presentation, Application, Integration, Data tiers); Oracle production databases; VMware virtual and physical servers; Data Center North/South disaster recovery; Essential for DCS operations',NULL,'Oracle databases, VMware, N-tier architecture',NULL,NULL,'CCWIS (first state to achieve full compliance per ACF data)',NULL,NULL,NULL,'https://www.tn.gov/dcs.html; https://rmd-rda.tnsos.net/node/35186; https://cma.com/images/content/GOVBUY2024/CMA_Transitional_CCWIS_Success.2024.pdf',NULL,'2026-01-12','Tennessee operates 12 service regions (East, Middle, West Grand Regions) across 95 counties. CMA selected May 2023 for CCWIS modernization. C-FIRST replacement planned Oct 2026 with risks in data migration/testing.');
+INSERT INTO system_details VALUES(45,43,'IMPACT','Information Management Protecting Adults and Children in Texas','IMPACT = Information Management Protecting Adults and Children in Texas','Texas DFPS SACWIS built on 1993 federal regulations (pre-smartphone era). Despite $80M modernization since 2015, system doesn''t meet updated federal guidance. Judge in federal case found system unconstitutional. $215M replacement planned 2028-2032.','Foster care tracking, Child welfare case management, Multi-agency coordination, Federal reporting','3 different system architectures; 12,000+ department users; 2,000+ external users across 13 agencies; Judge found inherent problems with outdated system',NULL,NULL,1993,NULL,'Non-CCWIS (replacement planned)','12,000+ department users, 2,000+ external users',NULL,NULL,'https://texas2036.org/posts/a-needed-investment-modernizing-texas-child-welfare-it-system/; https://www.dfps.texas.gov/About_DFPS/Reports_and_Presentations/Rider_Reports/documents/2024/2024-12-01_Rider%2047_Case_Management_System_Transition_Legislative.pdf',NULL,'2026-01-12','Texas 1 of 4 states (as of 2022) not declaring CCWIS intent. Missed 2018 CCWIS deadline. Total replacement cost $215M (50% federal match if CCWIS). Implementation 2028-2032 + 2 years maintenance.');
+INSERT INTO system_details VALUES(46,44,'UT SAFE','SAFE','SAFE is the system name','Utah DCFS case management information system. Intake workers enter information referrals into SAFE within 24 hours. Supports DCFS mission to keep children safe through family strengthening.','Child abuse/neglect assessment, Case management, Intake processing, Community referral tracking, In-home services documentation','24-hour intake entry requirement; Safety plan development support; Community referral tracking',NULL,NULL,NULL,NULL,'Transitional (CCWIS)',NULL,NULL,NULL,'https://dcfs.utah.gov/; https://dcfs.utah.gov/services/child-protective-services/',NULL,'2026-01-12','Child abuse/neglect hotline: 1-855-323-3237 (DCFS). Child Protection Ombudsman (CPO) available for concerns about DCFS case handling.');
+INSERT INTO system_details VALUES(47,45,'VT CWITS','Vermont Child Welfare Information Tracking System','CWITS = Child Welfare Information Tracking System','Vermont DCF 32-year-old child protection database - one of nation''s oldest. Supports ~200,000 Vermonters annually. System age and staffing shortages led to sweeping overhaul legislation.','Child protection case management, Assessment/investigation (72hr start requirement), Family services','32-year-old system (one of nation''s oldest); Assessment/investigation within 72 hours of report',NULL,NULL,NULL,NULL,'Non-CCWIS',NULL,NULL,NULL,'https://dcf.vermont.gov/; https://www.vtlawhelp.org/child-welfare-and-dcf',NULL,'2026-01-12','DCF serves ~200,000 Vermonters yearly including children, youth, families, older Vermonters, people with disabilities. System issues part of sweeping legislative overhaul.');
+INSERT INTO system_details VALUES(48,46,'OASIS','OASIS','OASIS is the system name','Virginia DSS child welfare case management system. Workers responsible for entering/updating all case data. Partners with 120 local DSS agencies plus faith-based and nonprofit organizations.','Foster care case management, Title IV-E eligibility determination, Case data entry, Child welfare services','Funding screen/eligibility determination; 120 local DSS partnership; CCWIS replacement focus area',NULL,NULL,NULL,NULL,'Non-CCWIS (CCWIS replacement planned)','~13,000 state and local human services professionals',NULL,NULL,'https://www.dss.virginia.gov/; https://www.dss.virginia.gov/files/division/dfs/fc/intro_page/guidance_manuals/fc/11_2018/section_4_opening_and_maintaining_case.pdf',NULL,'2026-01-12','VDSS is one of largest Commonwealth agencies. Focus areas include: Kin First Now, fatherhood engagement, primary prevention, CQI, workforce support, CCWIS replacement, legal representation.');
+INSERT INTO system_details VALUES(49,47,'FAMLINK','FamLink','FamLink = Family Link','Washington DCYF SACWIS. Code base from Wisconsin (~2000), transferred 2007, implemented Feb 2009 replacing legacy mainframe. System complexity limits modification, interoperability, and new technology.','Child welfare case management, Intake, CPS investigations, Foster care licensing, Fiduciary services, Communication/events documentation','2,700 DCYF staff users; 400 external users (tribal partners, ombudsman, IL providers); 233,000 clients supported; Data partnership with Center for Social Sector Analytics',NULL,NULL,2009,NULL,'Transitional (CCWIS planned)','2,700 DCYF staff + 400 external users',NULL,NULL,'https://dcyf.wa.gov/sites/default/files/pdf/PL-CI-CCWIS.pdf; https://www.dcyf.wa.gov/6000-operations/6600-documentation',NULL,'2026-01-12','FamLink code from Wisconsin (~2000), renamed when transferred 2007. Does not adequately meet business needs. Federal rule changes difficult to implement. New CCWIS system declared.');
+INSERT INTO system_details VALUES(50,48,'FACTS / WV PATH','Families and Children Tracking System / West Virginia People''s Access to Help','FACTS = Families and Children Tracking System; WV PATH = West Virginia People''s Access to Help','West Virginia transitioned from FACTS SACWIS to WV PATH (launched 2020 public portal). WV PATH provides comprehensive child welfare information system for efficient data tracking.','Child welfare case management, Provider services (FACTS Plus), Title IV-E administration, Data tracking and viewing','WV PATH comprehensive system; FACTS Plus provider portal; Child Welfare Dashboard; Public portal at wvpath.wv.gov',NULL,NULL,NULL,NULL,'Transitional (WV PATH operational)',NULL,NULL,NULL,'https://dhhr.wv.gov/News/2023/Pages/DHHR-Transitions-Child-Welfare-Information-System-to-West-Virginia-People''s-Access-to-Help-(WV-PATH).aspx; http://www.wvfacts.org/',NULL,'2026-01-12','WV PATH public portal: www.wvpath.wv.gov (replaced inRoads, launched 2020). FACTS Plus allows registered providers to view service information.');
+INSERT INTO system_details VALUES(51,49,'eWiSACWIS','Wisconsin Electronic Statewide Automated Child Welfare Information System','eWiSACWIS = Wisconsin Electronic Statewide Automated Child Welfare Information System','Wisconsin DCF SACWIS supporting county-operated, state-supervised child welfare system. Knowledge Web provides information and resources for users. SYNC collaboration rolling out for group care provider data sharing.','Child welfare case management, Youth justice, Performance reporting (eWReports), Workload management, Training (PDS Online)','Knowledge Web resources; eWReports distribution; Workload Management Dashboard; Calendar/Task List; SYNC cross-system collaboration with group care providers; Youth portal development',NULL,NULL,2008,NULL,'Transitional (CCWIS)',NULL,NULL,NULL,'https://dcf.wisconsin.gov/knowledgeweb/home; https://dcf.wisconsin.gov/cwportal/dataresources',NULL,'2026-01-12','Wisconsin is county-operated, state-supervised system. DCF created July 2008. Access restricted per WI Statutes 48.981, 48.78, 48.396. SYNC enables secure info-sharing with group care providers.');
+INSERT INTO system_details VALUES(52,50,'WYCAPS / WYOSAFE','Wyoming Children''s Assistance and Protection System / Wyoming System for Adult and Family Engagement','WYCAPS = Wyoming Children''s Assistance and Protection System; WYOSAFE = Wyoming System for Adult and Family Engagement','Wyoming transitioned from WYCAPS (implemented June 1998, 75% federal funded) to WYOSAFE CCWIS (went live September 1, 2024). WYOSAFE interfaces with other DFS and state agency systems.','CPS case management, Foster care/adoption (IV-E), Central registry (substantiated offenders), TFC program tracking, Data reporting','WYOSAFE interfaces with DFS and state agency systems; Streamlined processes; Improved data reporting/sharing; Staff and stakeholder experience improvements',NULL,NULL,2024,NULL,'Transitional (WYOSAFE CCWIS operational Sept 2024)',NULL,NULL,NULL,'https://dfs.wyo.gov/wyosafe/; https://www.wyoleg.gov/progeval/reports/2008/CPS/CPSfullreport.pdf',NULL,'2026-01-12','WYCAPS created June 1998 (75% federal match). WYOSAFE replaced WYCAPS Sept 1, 2024. EPICS also used for foster care/adoption IV-E.');
+CREATE TABLE jurisdiction_economics (
+    economics_id INTEGER PRIMARY KEY,
+    jurisdiction_id INTEGER NOT NULL UNIQUE,
 
-### UPSERT / MERGE
+    -- Population data
+    population INTEGER,
+    population_year INTEGER DEFAULT 2024,
+    population_source TEXT,
 
-```sql
--- MariaDB
-INSERT INTO t (id, val) VALUES (1, 'new')
-ON DUPLICATE KEY UPDATE val = VALUES(val);
+    -- Economic indicators
+    gdp_per_capita INTEGER,  -- in USD
+    gdp_per_capita_year INTEGER DEFAULT 2024,
+    gdp_total_millions INTEGER,  -- total GDP in millions USD
 
--- Snowflake
-MERGE INTO t USING (SELECT 1 as id, 'new' as val) s ON t.id = s.id
-WHEN MATCHED THEN UPDATE SET val = s.val
-WHEN NOT MATCHED THEN INSERT (id, val) VALUES (s.id, s.val);
-```
+    -- Government budget data
+    total_budget_millions INTEGER,  -- total state/territory/tribal budget in millions USD
+    budget_fiscal_year INTEGER,
+    general_fund_millions INTEGER,  -- general fund portion
 
-### UPDATE with JOIN
+    -- Social services spending
+    social_services_spending_millions INTEGER,  -- public welfare/human services spending
+    social_services_pct_of_budget REAL,  -- percentage of total budget
+    public_welfare_per_capita INTEGER,  -- per capita welfare spending
 
-```sql
--- MariaDB
-UPDATE t1 JOIN t2 ON t1.id = t2.t1_id
-SET t1.status = t2.status;
+    -- Data quality
+    data_quality TEXT CHECK(data_quality IN ('Complete', 'Partial', 'Estimated', 'Limited')),
+    notes TEXT,
+    last_updated DATE DEFAULT CURRENT_DATE,
 
--- Snowflake
-UPDATE t1
-SET status = t2.status
-FROM t2
-WHERE t1.id = t2.t1_id;
-```
-
-### DELETE with JOIN
-
-```sql
--- MariaDB
-DELETE t1 FROM t1 JOIN t2 ON t1.id = t2.t1_id WHERE t2.flag = 1;
-
--- Snowflake
-DELETE FROM t1 USING t2 WHERE t1.id = t2.t1_id AND t2.flag = 1;
-```
-
-## JSON / Semi-Structured Data
-
-```sql
--- MariaDB
-SELECT JSON_EXTRACT(data, '$.name') FROM t;
-SELECT data->'$.name' FROM t;
-SELECT JSON_UNQUOTE(JSON_EXTRACT(data, '$.name')) FROM t;
-SELECT data->>'$.name' FROM t;
-
--- Snowflake (using VARIANT)
-SELECT data:name FROM t;                    -- Returns VARIANT
-SELECT data:name::STRING FROM t;            -- Cast to string
-SELECT data['name'] FROM t;                 -- Bracket notation
-SELECT GET_PATH(data, 'name') FROM t;       -- Function form
-```
-
-### Nested JSON
-
-```sql
--- MariaDB
-SELECT JSON_EXTRACT(data, '$.address.city') FROM t;
-
--- Snowflake
-SELECT data:address.city::STRING FROM t;
-SELECT data:address:city::STRING FROM t;    -- Both work
-```
-
-### JSON Arrays
-
-```sql
--- MariaDB
-SELECT JSON_EXTRACT(data, '$.tags[0]') FROM t;
-
--- Snowflake
-SELECT data:tags[0]::STRING FROM t;
-```
-
-### Flattening Arrays (Snowflake-specific)
-
-```sql
--- Snowflake: Explode JSON arrays
-SELECT t.id, f.value::STRING as tag
-FROM t, LATERAL FLATTEN(input => t.data:tags) f;
-```
-
-## Common Gotchas
-
-1. **Division**: Both truncate integer division. Use `::FLOAT` in Snowflake for decimal results.
-
-2. **Empty strings vs NULL**: Snowflake treats them differently; be explicit.
-
-3. **Case sensitivity**: Unquoted identifiers become UPPERCASE in Snowflake.
-   ```sql
-   CREATE TABLE MyTable (...)  -- Creates "MYTABLE"
-   CREATE TABLE "MyTable" (...) -- Creates "MyTable"
-   ```
-
-4. **Boolean comparisons**: Snowflake is stricter.
-   ```sql
-   -- MariaDB
-   WHERE flag  -- Works if flag is 0/1
-   
-   -- Snowflake
-   WHERE flag = TRUE  -- Be explicit
-   ```
-
-5. **DISTINCT in aggregates**: Similar syntax but verify behavior with NULLs.
-
-6. **Transactions**: Snowflake auto-commits DDL; explicit transactions work differently.
-
-7. **Temporary tables**: Syntax differs slightly.
-   ```sql
-   -- MariaDB
-   CREATE TEMPORARY TABLE tmp (...);
-   
-   -- Snowflake
-   CREATE TEMPORARY TABLE tmp (...);  -- Session-scoped
-   CREATE TRANSIENT TABLE tmp (...);  -- Persists but no fail-safe
-   ```
-
-## Snowflake-Specific Features Worth Knowing
-
-- **QUALIFY**: Filter window function results without subquery
-  ```sql
-  SELECT * FROM t
-  QUALIFY ROW_NUMBER() OVER (PARTITION BY x ORDER BY y) = 1;
-  ```
-
-- **SAMPLE**: Random sampling
-  ```sql
-  SELECT * FROM t SAMPLE (10);  -- 10% of rows
-  ```
-
-- **Time travel**: Query historical data
-  ```sql
-  SELECT * FROM t AT(TIMESTAMP => '2024-01-01 00:00:00'::TIMESTAMP);
-  SELECT * FROM t BEFORE(STATEMENT => 'query-id');
-  ```
-
-- **CLONE**: Zero-copy cloning
-  ```sql
-  CREATE TABLE t_backup CLONE t;
-  ```
+    FOREIGN KEY (jurisdiction_id) REFERENCES jurisdictions(jurisdiction_id)
+);
+INSERT INTO jurisdiction_economics VALUES(1,1,5237750,2024,NULL,62834,2024,329000,40552,NULL,NULL,12166,30.0,2322,'Complete','Population 2024 est; Budget SFY 2023','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(2,2,747379,2024,NULL,94768,2024,70800,15824,NULL,NULL,4747,30.0,6351,'Complete','High per capita welfare due to small population','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(3,3,7801100,2024,NULL,73277,2024,571600,111291,NULL,NULL,33387,30.0,4280,'Complete','Large Medicaid expansion state','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(4,4,3126140,2024,NULL,61596,2024,192600,33773,NULL,NULL,10132,30.0,3241,'Complete','Uses Binti for CCWIS modules','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(5,5,39896400,2024,NULL,104795,2024,4180000,413783,NULL,NULL,124135,30.0,3112,'Complete','Largest state budget; CWS-CARES $1.7B modernization','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(6,6,6069800,2024,NULL,93547,2024,567800,37859,NULL,NULL,11358,30.0,1871,'Complete','County-administered child welfare','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(7,7,3739160,2024,NULL,100221,2024,374800,42571,NULL,NULL,12771,30.0,3416,'Complete','CT-KIND Dynamics 365 implementation in progress','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(8,8,1082900,2024,NULL,98863,2024,107100,15467,NULL,NULL,4640,30.0,4285,'Complete','Small state with relatively high per capita spending','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(9,9,24306900,2024,NULL,73501,2024,1787000,119078,NULL,NULL,35723,30.0,1470,'Complete','Third largest state; lower per capita welfare spending','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(10,10,11413800,2024,NULL,79414,2024,906200,75144,NULL,NULL,22543,30.0,1975,'Complete','Lower welfare spending per capita','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(11,11,1455660,2024,NULL,80415,2024,117100,19231,NULL,NULL,5769,30.0,3963,'Complete','Uses Binti; SHAKA system','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(12,12,2062610,2024,NULL,86587,2024,178600,12480,NULL,NULL,3744,30.0,1815,'Complete','ESPI Dynamics 365 CCWIS by Deloitte; $30M project','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(13,13,12846000,2024,NULL,89934,2024,1155000,121178,NULL,NULL,36353,30.0,2830,'Complete','Fourth largest budget','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(14,14,7012560,2024,NULL,76638,2024,537400,53568,NULL,NULL,16070,30.0,2292,'Complete','Salesforce CCWIS pioneer; supports NEICE','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(15,15,3287640,2024,NULL,79462,2024,261300,29584,NULL,NULL,8875,30.0,2699,'Complete','Midwest moderate spending','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(16,16,3008820,2024,NULL,79486,2024,239200,24272,NULL,NULL,7282,30.0,2420,'Complete','$100M CCWIS replacement planned','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(17,17,4663930,2024,NULL,64323,2024,299900,49638,NULL,NULL,14891,30.0,3193,'Complete','Higher welfare spending share','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(18,18,4617080,2024,NULL,71548,2024,330300,43019,NULL,NULL,12906,30.0,2796,'Complete','Medicaid expansion state','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(19,19,1415740,2024,NULL,70632,2024,100000,13010,NULL,NULL,3903,30.0,2757,'Complete','Katahdin CCWIS by Deloitte; implementation issues','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(20,20,6355540,2024,NULL,87233,2024,554500,67723,NULL,NULL,20317,30.0,3197,'Complete','Uses Curam SPM; CLAIMS system','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(21,21,7275380,2024,NULL,110023,2024,800500,81007,NULL,NULL,24302,30.0,3340,'Complete','Non-CCWIS; high spending state','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(22,22,10254700,2024,NULL,70162,2024,719300,81538,NULL,NULL,24461,30.0,2385,'Complete','CCWIS status undetermined','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(23,23,5873360,2024,NULL,86817,2024,509900,54139,NULL,NULL,16242,30.0,2765,'Complete','County-administered; uses Curam','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(24,24,2942790,2024,NULL,53872,2024,158500,23715,NULL,NULL,7115,30.0,2418,'Complete','Lowest GDP per capita','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(25,25,6320320,2024,NULL,72786,2024,460100,38171,NULL,NULL,11451,30.0,1812,'Complete','Uses Curam','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(26,26,1149100,2024,NULL,67001,2024,77000,10473,NULL,NULL,3142,30.0,2734,'Complete','Small population mountain state','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(27,27,2040670,2024,NULL,92730,2024,189200,17207,NULL,NULL,5162,30.0,2530,'Complete','CCWIS status undetermined','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(28,28,3373680,2024,NULL,80195,2024,270500,18291,NULL,NULL,5487,30.0,1626,'Complete','CCWIS status undetermined','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(29,29,1422700,2024,NULL,86645,2024,123300,8311,NULL,NULL,2493,30.0,1753,'Complete','Lowest per capita welfare in region','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(30,30,9743270,2024,NULL,89662,2024,873800,87153,NULL,NULL,26146,30.0,2684,'Complete','Large budget northeastern state','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(31,31,2148440,2024,NULL,66331,2024,142600,26372,NULL,NULL,7912,30.0,3682,'Complete','Uses Binti; high poverty rate','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(32,32,20127000,2024,NULL,116321,2024,2340700,220462,NULL,NULL,66139,30.0,3286,'Complete','Second largest budget; highest GDP per capita among large states','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(33,33,11375700,2024,NULL,76511,2024,870300,63384,NULL,NULL,19015,30.0,1672,'Complete','Non-CCWIS; PATH NC $65M Deloitte replacement','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(34,34,811610,2024,NULL,94431,2024,76700,8240,NULL,NULL,2472,30.0,3046,'Complete','High GDP from energy sector','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(35,35,12001800,2024,NULL,78517,2024,942400,93380,NULL,NULL,28014,30.0,2334,'Complete','County-administered; uses Northwoods Traverse','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(36,36,4158420,2024,NULL,65274,2024,271500,29289,NULL,NULL,8787,30.0,2113,'Complete','OK KIDS system','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(37,37,4309810,2024,NULL,78052,2024,336300,53922,NULL,NULL,16177,30.0,3754,'Complete','CCWIS status undetermined; high welfare spending','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(38,38,13200800,2024,NULL,78927,2024,1041700,113613,NULL,NULL,34084,30.0,2582,'Complete','Fifth largest state budget','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(39,39,1130070,2024,NULL,74735,2024,84500,12776,NULL,NULL,3833,30.0,3391,'Complete','Small state; moderate spending','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(40,40,5660830,2024,NULL,64256,2024,363700,38752,NULL,NULL,11626,30.0,2054,'Complete','Uses Curam SPM','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(41,41,937397,2024,NULL,81578,2024,76500,6100,NULL,NULL,1830,30.0,1952,'Complete','FACIS system; small budget','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(42,42,7386640,2024,NULL,76576,2024,565700,48258,NULL,NULL,14477,30.0,1960,'Complete','Growing population state','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(43,43,32416700,2024,NULL,87150,2024,2824500,137108,NULL,NULL,41132,30.0,1269,'Complete','CCWIS undetermined; IMPACT system; $215M replacement planned 2028-2032','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(44,44,3624400,2024,NULL,86587,2024,314000,23455,NULL,NULL,7037,30.0,1941,'Complete','Fastest growing state economy in 2024','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(45,45,648063,2024,NULL,71117,2024,46100,7893,NULL,NULL,2368,30.0,3653,'Complete','CCWIS undetermined; smallest state GDP','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(46,46,8964220,2024,NULL,87350,2024,783000,79950,NULL,NULL,23985,30.0,2676,'Complete','Tech corridor state','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(47,47,8159900,2024,NULL,108051,2024,881900,73096,NULL,NULL,21929,30.0,2687,'Complete','Third highest GDP per capita','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(48,48,1768950,2024,NULL,61224,2024,108300,23208,NULL,NULL,6962,30.0,3936,'Complete','High welfare as percentage of budget','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(49,49,6022120,2024,NULL,76429,2024,460300,62516,NULL,NULL,18755,30.0,3114,'Complete','eWiSACWIS system','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(50,50,592720,2024,NULL,90457,2024,53600,5353,NULL,NULL,1606,30.0,2709,'Complete','WYOSAFE CCWIS live Sept 2024','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(51,51,713200,2024,NULL,266787,2024,190200,18656,NULL,NULL,5597,30.0,7848,'Complete','Highest GDP per capita; uses Curam','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(52,52,3285874,2024,NULL,35000,2024,115000,31020,NULL,NULL,9306,30.0,2832,'Partial','Oversight Board budget; lower GDP due to economic challenges','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(53,53,169532,2024,NULL,36000,2024,6100,1200,NULL,NULL,360,30.0,2123,'Partial','Estimated from GDP; limited territorial data','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(54,54,104377,2024,NULL,40000,2024,4200,1100,NULL,NULL,330,30.0,3162,'Partial','Economic challenges; tourism dependent','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(55,55,49710,2024,NULL,15000,2024,746,400,NULL,NULL,120,30.0,2414,'Limited','Small territory; limited economic data','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(56,56,47329,2024,NULL,20000,2024,946,350,NULL,NULL,105,30.0,2219,'Limited','Smallest population territory','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(57,57,399494,2024,NULL,NULL,2024,NULL,258,NULL,NULL,77,30.0,193,'Partial','FY2024 General Fund $258M; largest reservation by land area','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(58,58,450000,2024,NULL,NULL,2024,NULL,3800,NULL,NULL,1140,30.0,2533,'Partial','FY2024 $3.8B comprehensive budget; largest enrolled membership','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(59,59,16000,2024,NULL,NULL,2024,NULL,200,NULL,NULL,60,30.0,3750,'Estimated','Estimated based on similar sized tribes','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(60,60,22000,2024,NULL,NULL,2024,NULL,150,NULL,NULL,45,30.0,2045,'Estimated','Arizona-based tribe','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(61,61,1300,2024,NULL,NULL,2024,NULL,30,NULL,NULL,9,30.0,6923,'Estimated','Washington state small tribe','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(62,62,3500,2024,NULL,NULL,2024,NULL,40,NULL,NULL,12,30.0,3429,'Estimated','Michigan tribe','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(63,63,8000,2024,NULL,NULL,2024,NULL,100,NULL,NULL,30,30.0,3750,'Estimated','Flathead Reservation Montana','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(64,64,3000,2024,NULL,NULL,2024,NULL,50,NULL,NULL,15,30.0,5000,'Estimated','Washington coastal tribe','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(65,65,1100,2024,NULL,NULL,2024,NULL,20,NULL,NULL,6,30.0,5455,'Estimated','Minnesota small tribe','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(66,66,20000,2024,NULL,NULL,2024,NULL,80,NULL,NULL,24,30.0,1200,'Estimated','Minnesota largest Ojibwe reservation','2026-01-12');
+INSERT INTO jurisdiction_economics VALUES(67,67,3000,2024,NULL,NULL,2024,NULL,100,NULL,NULL,30,30.0,10000,'Estimated','Washington tribe near Seattle; gaming revenue','2026-01-12');
+CREATE INDEX idx_jurisdictions_type ON jurisdictions(jurisdiction_type_id);
+CREATE INDEX idx_jurisdictions_ccwis_status ON jurisdictions(ccwis_status);
+CREATE INDEX idx_planned_systems_jurisdiction ON planned_systems(jurisdiction_id);
+CREATE INDEX idx_system_notes_jurisdiction ON system_notes(jurisdiction_id);
+CREATE VIEW v_state_systems AS
+SELECT
+    j.name,
+    j.abbreviation,
+    jt.type_name as jurisdiction_type,
+    j.current_system_name,
+    st.type_code as system_type,
+    j.ccwis_status,
+    j.ccwis_declaration_date,
+    j.administering_agency,
+    j.county_administered
+FROM jurisdictions j
+JOIN jurisdiction_types jt ON j.jurisdiction_type_id = jt.type_id
+LEFT JOIN system_types st ON j.current_system_type_id = st.type_id
+WHERE j.jurisdiction_type_id = 1
+ORDER BY j.name;
+CREATE VIEW v_ccwis_summary AS
+SELECT
+    ccwis_status,
+    COUNT(*) as count,
+    GROUP_CONCAT(abbreviation, ', ') as jurisdictions
+FROM jurisdictions
+WHERE jurisdiction_type_id IN (1, 2, 3)
+GROUP BY ccwis_status;
+CREATE VIEW v_planned_implementations AS
+SELECT
+    j.name as jurisdiction,
+    j.current_system_name,
+    p.planned_system_name,
+    p.target_ccwis_status,
+    p.project_status,
+    p.planned_go_live_date,
+    p.estimated_cost
+FROM planned_systems p
+JOIN jurisdictions j ON p.jurisdiction_id = j.jurisdiction_id
+WHERE p.project_status NOT IN ('Operational', 'Cancelled')
+ORDER BY p.planned_go_live_date;
+CREATE VIEW v_platform_usage AS
+SELECT
+    p.platform_name,
+    p.platform_category,
+    v.vendor_name,
+    COUNT(DISTINCT jp.jurisdiction_id) as jurisdiction_count,
+    GROUP_CONCAT(j.abbreviation, ', ') as jurisdictions
+FROM technology_platforms p
+LEFT JOIN jurisdiction_platforms jp ON p.platform_id = jp.platform_id
+LEFT JOIN jurisdictions j ON jp.jurisdiction_id = j.jurisdiction_id
+LEFT JOIN vendors v ON p.vendor_id = v.vendor_id
+GROUP BY p.platform_id
+HAVING jurisdiction_count > 0
+ORDER BY jurisdiction_count DESC;
+CREATE VIEW v_jurisdiction_tech_stack AS
+SELECT
+    j.name as jurisdiction,
+    j.abbreviation,
+    j.current_system_name,
+    j.ccwis_status,
+    GROUP_CONCAT(p.platform_name || ' (' || jp.role || ')', '; ') as tech_stack,
+    GROUP_CONCAT(DISTINCT v.vendor_name) as vendors
+FROM jurisdictions j
+LEFT JOIN jurisdiction_platforms jp ON j.jurisdiction_id = jp.jurisdiction_id
+LEFT JOIN technology_platforms p ON jp.platform_id = p.platform_id
+LEFT JOIN vendors v ON jp.vendor_id = v.vendor_id OR p.vendor_id = v.vendor_id
+WHERE j.jurisdiction_type_id = 1
+GROUP BY j.jurisdiction_id
+ORDER BY j.name;
+CREATE VIEW v_cloud_adoption AS
+SELECT
+    CASE
+        WHEN EXISTS (SELECT 1 FROM jurisdiction_platforms jp2
+                     JOIN technology_platforms p2 ON jp2.platform_id = p2.platform_id
+                     WHERE jp2.jurisdiction_id = j.jurisdiction_id
+                     AND p2.platform_category = 'Cloud Infrastructure') THEN 'Cloud'
+        ELSE 'On-Premises/Unknown'
+    END as deployment_model,
+    COUNT(*) as state_count
+FROM jurisdictions j
+WHERE j.jurisdiction_type_id = 1
+GROUP BY deployment_model;
+CREATE VIEW v_acf_ccwis_status AS
+SELECT
+    j.name as state_territory,
+    j.abbreviation,
+    j.ccwis_status,
+    j.current_system_name as system_in_use,
+    COALESCE(p.planned_system_name, 'None planned') as replacement_system,
+    p.project_status as replacement_status
+FROM jurisdictions j
+LEFT JOIN planned_systems p ON j.jurisdiction_id = p.jurisdiction_id
+WHERE j.jurisdiction_type_id IN (1, 2, 3)
+ORDER BY j.name;
+CREATE INDEX idx_system_details_jurisdiction ON system_details(jurisdiction_id);
+CREATE INDEX idx_system_details_name ON system_details(system_name);
+CREATE VIEW v_system_details_summary AS
+SELECT 
+    j.name as jurisdiction,
+    j.abbreviation,
+    sd.system_name,
+    sd.system_full_name,
+    sd.system_acronym_meaning,
+    sd.system_description,
+    sd.primary_functions,
+    sd.key_features,
+    sd.technology_stack,
+    sd.implementation_year,
+    sd.implementation_vendor,
+    sd.current_status,
+    sd.user_count,
+    sd.source_urls,
+    sd.research_date
+FROM system_details sd
+JOIN jurisdictions j ON sd.jurisdiction_id = j.jurisdiction_id
+ORDER BY j.name;
+CREATE INDEX idx_jurisdiction_economics_jid ON jurisdiction_economics(jurisdiction_id);
+CREATE VIEW v_economics_by_jurisdiction_type AS
+SELECT
+    jt.type_name as jurisdiction_type,
+    COUNT(je.jurisdiction_id) as count,
+    ROUND(AVG(je.population), 0) as avg_population,
+    ROUND(AVG(je.gdp_per_capita), 0) as avg_gdp_per_capita,
+    ROUND(AVG(je.total_budget_millions), 0) as avg_budget_millions,
+    ROUND(SUM(je.total_budget_millions), 0) as total_budget_millions,
+    ROUND(AVG(je.social_services_spending_millions), 0) as avg_social_services_millions,
+    ROUND(AVG(je.public_welfare_per_capita), 0) as avg_welfare_per_capita
+FROM jurisdiction_economics je
+JOIN jurisdictions j ON je.jurisdiction_id = j.jurisdiction_id
+JOIN jurisdiction_types jt ON j.jurisdiction_type_id = jt.type_id
+GROUP BY jt.type_id
+ORDER BY total_budget_millions DESC;
+CREATE VIEW v_vendor_by_budget_tier AS
+SELECT
+    CASE
+        WHEN je.total_budget_millions >= 100000 THEN 'Very Large (>$100B)'
+        WHEN je.total_budget_millions >= 50000 THEN 'Large ($50B-$100B)'
+        WHEN je.total_budget_millions >= 25000 THEN 'Medium ($25B-$50B)'
+        WHEN je.total_budget_millions >= 10000 THEN 'Small ($10B-$25B)'
+        ELSE 'Very Small (<$10B)'
+    END as budget_tier,
+    COUNT(DISTINCT j.jurisdiction_id) as state_count,
+    GROUP_CONCAT(DISTINCT v.vendor_name) as vendors_used,
+    GROUP_CONCAT(DISTINCT p.platform_name) as platforms_used,
+    ROUND(AVG(je.gdp_per_capita), 0) as avg_gdp_per_capita,
+    ROUND(AVG(je.public_welfare_per_capita), 0) as avg_welfare_per_capita
+FROM jurisdictions j
+JOIN jurisdiction_economics je ON j.jurisdiction_id = je.jurisdiction_id
+LEFT JOIN jurisdiction_platforms jp ON j.jurisdiction_id = jp.jurisdiction_id
+LEFT JOIN vendors v ON jp.vendor_id = v.vendor_id
+LEFT JOIN technology_platforms p ON jp.platform_id = p.platform_id
+WHERE j.jurisdiction_type_id = 1  -- States only
+GROUP BY budget_tier
+ORDER BY
+    CASE budget_tier
+        WHEN 'Very Large (>$100B)' THEN 1
+        WHEN 'Large ($50B-$100B)' THEN 2
+        WHEN 'Medium ($25B-$50B)' THEN 3
+        WHEN 'Small ($10B-$25B)' THEN 4
+        ELSE 5
+    END
+;
+CREATE VIEW v_vendor_by_jurisdiction_type AS
+SELECT
+    jt.type_name as jurisdiction_type,
+    v.vendor_name,
+    v.vendor_type,
+    COUNT(DISTINCT jp.jurisdiction_id) as jurisdiction_count,
+    GROUP_CONCAT(DISTINCT j.abbreviation) as jurisdictions,
+    ROUND(AVG(je.total_budget_millions), 0) as avg_budget_millions,
+    ROUND(AVG(je.gdp_per_capita), 0) as avg_gdp_per_capita,
+    ROUND(AVG(je.population), 0) as avg_population
+FROM jurisdiction_platforms jp
+JOIN jurisdictions j ON jp.jurisdiction_id = j.jurisdiction_id
+JOIN jurisdiction_types jt ON j.jurisdiction_type_id = jt.type_id
+JOIN vendors v ON jp.vendor_id = v.vendor_id
+LEFT JOIN jurisdiction_economics je ON j.jurisdiction_id = je.jurisdiction_id
+GROUP BY jt.type_id, v.vendor_id
+ORDER BY jt.type_id, jurisdiction_count DESC;
+CREATE VIEW v_platform_by_jurisdiction_type AS
+SELECT
+    jt.type_name as jurisdiction_type,
+    p.platform_name,
+    p.platform_category,
+    COUNT(DISTINCT jp.jurisdiction_id) as adoption_count,
+    GROUP_CONCAT(DISTINCT j.abbreviation) as jurisdictions,
+    ROUND(AVG(je.total_budget_millions), 0) as avg_budget_millions,
+    ROUND(AVG(je.gdp_per_capita), 0) as avg_gdp_per_capita
+FROM jurisdiction_platforms jp
+JOIN jurisdictions j ON jp.jurisdiction_id = j.jurisdiction_id
+JOIN jurisdiction_types jt ON j.jurisdiction_type_id = jt.type_id
+JOIN technology_platforms p ON jp.platform_id = p.platform_id
+LEFT JOIN jurisdiction_economics je ON j.jurisdiction_id = je.jurisdiction_id
+GROUP BY jt.type_id, p.platform_id
+ORDER BY jt.type_id, adoption_count DESC;
+CREATE VIEW v_ccwis_status_economics AS
+SELECT
+    j.ccwis_status,
+    COUNT(*) as count,
+    ROUND(AVG(je.population), 0) as avg_population,
+    ROUND(AVG(je.gdp_per_capita), 0) as avg_gdp_per_capita,
+    ROUND(AVG(je.total_budget_millions), 0) as avg_budget_millions,
+    ROUND(AVG(je.public_welfare_per_capita), 0) as avg_welfare_per_capita,
+    GROUP_CONCAT(j.abbreviation, ', ') as jurisdictions
+FROM jurisdictions j
+JOIN jurisdiction_economics je ON j.jurisdiction_id = je.jurisdiction_id
+WHERE j.jurisdiction_type_id = 1  -- States only
+GROUP BY j.ccwis_status
+ORDER BY count DESC
+;
+CREATE VIEW v_jurisdiction_economics_summary AS
+SELECT
+    j.name,
+    j.abbreviation,
+    jt.type_name as jurisdiction_type,
+    j.ccwis_status,
+    j.current_system_name,
+    je.population,
+    je.gdp_per_capita,
+    je.total_budget_millions,
+    je.social_services_spending_millions,
+    je.public_welfare_per_capita,
+    je.data_quality,
+    je.notes as economic_notes
+FROM jurisdictions j
+JOIN jurisdiction_types jt ON j.jurisdiction_type_id = jt.type_id
+LEFT JOIN jurisdiction_economics je ON j.jurisdiction_id = je.jurisdiction_id
+ORDER BY jt.type_id, j.name;
+CREATE VIEW v_states_by_budget_with_vendors AS
+SELECT
+    j.name as state,
+    j.abbreviation,
+    je.population,
+    je.gdp_per_capita,
+    je.total_budget_millions,
+    je.social_services_spending_millions,
+    je.public_welfare_per_capita,
+    j.ccwis_status,
+    j.current_system_name,
+    GROUP_CONCAT(DISTINCT v.vendor_name) as vendors,
+    GROUP_CONCAT(DISTINCT p.platform_name) as platforms
+FROM jurisdictions j
+JOIN jurisdiction_economics je ON j.jurisdiction_id = je.jurisdiction_id
+LEFT JOIN jurisdiction_platforms jp ON j.jurisdiction_id = jp.jurisdiction_id
+LEFT JOIN vendors v ON jp.vendor_id = v.vendor_id
+LEFT JOIN technology_platforms p ON jp.platform_id = p.platform_id
+WHERE j.jurisdiction_type_id = 1
+GROUP BY j.jurisdiction_id
+ORDER BY je.total_budget_millions DESC;
+COMMIT;
