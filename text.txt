@@ -1,1 +1,73 @@
 
+# Natural Language Access to Child Welfare Data
+
+*Concept Brief: AI-Assisted Querying for AFCARS and CFSR Data*
+
+## The Challenge
+
+Staff across our organization need answers from our child welfare data systems, but getting those answers currently requires either SQL expertise or submitting requests to our data team. This creates bottlenecks and delays decision-making.
+
+Common questions that should be easy to answer:
+
+- *"How many children were discharged to adoption last quarter?"*
+- *"What percentage of reunifications occurred within 12 months?"*
+- *"Show me placement stability trends by age group."*
+
+## Proposed Solution
+
+We can deploy a **Model Context Protocol (MCP) server** that allows an AI assistant to translate plain English questions into database queries. This approach has been successfully demonstrated in healthcare settings with the OMOP Common Data Model.
+
+The key innovation is that the AI never sees raw data directly. Instead, it generates SQL queries that are validated for safety before execution, and results are filtered to prevent disclosure of identifiable information.
+
+## How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    YOUR SECURE ENVIRONMENT                      │
+│                                                                 │
+│   ┌─────────┐      ┌──────────────┐      ┌──────────────┐      │
+│   │  User   │      │  MCP Server  │      │   AFCARS /   │      │
+│   │ (Staff) │ ───► │  (Validator) │ ───► │ CFSR Database│      │
+│   └─────────┘      └──────────────┘      └──────────────┘      │
+│        │                  │                                    │
+│        │    "How many     │  Validates query                   │
+│        │     adoptions?"  │  Blocks PII access                 │
+│        ▼                  │  Enforces cell sizes               │
+│   ┌─────────┐             │                                    │
+│   │   LLM   │◄────────────┘                                    │
+│   │ (Local) │  Translates question to SQL                      │
+│   └─────────┘                                                  │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Critical:** By running the AI model locally (via tools like Ollama), no child welfare data ever leaves our network. The entire system operates within our secure environment.
+
+## Required Components
+
+| Component | Purpose |
+|-----------|---------|
+| **Local LLM** | Ollama with a coding-optimized model (e.g., Qwen2.5-Coder). Runs on-premise; nothing leaves the network. |
+| **MCP Server** | Python middleware that validates AI-generated queries, blocks unsafe operations, and connects to the database. |
+| **Schema Documentation** | AFCARS element definitions and CFSR outcome measures provided as context so the AI understands the data structure. |
+| **Data Validator** | Filters results to block PII, enforce minimum cell sizes, and prevent re-identification risk. |
+| **User Interface** | Chat interface (LibreChat, Oterm, or similar) where staff type questions in plain English. |
+
+## Privacy & Security Safeguards
+
+- **All processing stays on-premise:** No data is sent to external AI services.
+- **Query validation:** Only SELECT statements are permitted; INSERT, UPDATE, DELETE are blocked at the code level.
+- **Column restrictions:** PII fields (names, SSNs, dates of birth) are excluded from AI access entirely.
+- **Cell size suppression:** Results returning fewer than 10 records are automatically suppressed to prevent identification.
+- **Audit logging:** All queries are logged for review and accountability.
+
+## Recommended Next Steps
+
+1. **Proof of Concept:** Build a prototype using synthetic or de-identified AFCARS data to demonstrate the workflow.
+2. **Hardware Assessment:** Evaluate whether existing infrastructure can support local LLM deployment, or if modest GPU resources are needed.
+3. **Stakeholder Input:** Gather common questions from CQI staff, analysts, and program managers to guide system design.
+4. **Security Review:** Engage IT security to review the architecture and validate data protection measures.
+
+---
+
+*This approach has been validated in healthcare settings where similar privacy constraints apply. The open-source tools and standards (MCP, Ollama, SQLGlot) mean we can build on proven technology rather than starting from scratch.*
