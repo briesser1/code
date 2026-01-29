@@ -1,1 +1,1742 @@
 
+# Product Requirements Document
+## Organizational Knowledge Graph Platform
+
+**Product Name:** KnowledgeGraph (working title)
+**Version:** 2.0
+**Date:** January 2025
+**Product Owner:** [TBD]
+**Status:** Draft
+
+---
+
+## Table of Contents
+
+1. [Product Vision](#1-product-vision)
+2. [Problem Statement](#2-problem-statement)
+3. [User Personas](#3-user-personas)
+4. [Phase Overview](#4-phase-overview)
+5. [Phase 1: Extraction & NLP Text Mining](#5-phase-1-extraction--nlp-text-mining)
+   - [5.1 Phase 1 Scope & Goals](#51-phase-1-scope--goals)
+   - [5.2 Epic 1: Monday.com Data Ingestion](#52-epic-1-mondaycom-data-ingestion)
+   - [5.3 Epic 2: Text Processing & Entity Extraction](#53-epic-2-text-processing--entity-extraction)
+   - [5.4 Epic 3: Extraction Data Storage](#54-epic-3-extraction-data-storage)
+   - [5.5 Epic 4: Extraction Administration & Operations](#55-epic-4-extraction-administration--operations)
+   - [5.6 Phase 1 Technical Architecture](#56-phase-1-technical-architecture)
+   - [5.7 Phase 1 Technology Stack](#57-phase-1-technology-stack)
+   - [5.8 Phase 1 Data Model](#58-phase-1-data-model)
+   - [5.9 Phase 1 Integration Specifications](#59-phase-1-integration-specifications)
+   - [5.10 Phase 1 Success Metrics & KPIs](#510-phase-1-success-metrics--kpis)
+   - [5.11 Phase 1 Release Plan](#511-phase-1-release-plan)
+6. [Phase 2: Full Knowledge Graph Implementation](#6-phase-2-full-knowledge-graph-implementation)
+   - [6.1 Phase 2 Scope & Goals](#61-phase-2-scope--goals)
+   - [6.2 Epic 5: Knowledge Graph Storage](#62-epic-5-knowledge-graph-storage)
+   - [6.3 Epic 6: Natural Language Query Interface](#63-epic-6-natural-language-query-interface)
+   - [6.4 Epic 7: SharePoint Integration](#64-epic-7-sharepoint-integration)
+   - [6.5 Epic 8: Cross-Source Intelligence & Administration](#65-epic-8-cross-source-intelligence--administration)
+   - [6.6 Phase 2 Technical Architecture](#66-phase-2-technical-architecture)
+   - [6.7 Phase 2 Technology Stack (Additions)](#67-phase-2-technology-stack-additions)
+   - [6.8 Phase 2 Data Model & Schema](#68-phase-2-data-model--schema)
+   - [6.9 Phase 2 Integration Specifications](#69-phase-2-integration-specifications)
+   - [6.10 Phase 2 Success Metrics & KPIs](#610-phase-2-success-metrics--kpis)
+   - [6.11 Phase 2 Release Plan](#611-phase-2-release-plan)
+7. [User Journey Maps](#7-user-journey-maps)
+8. [Assumptions & Constraints](#8-assumptions--constraints)
+9. [Dependencies](#9-dependencies)
+10. [Risks & Mitigations](#10-risks--mitigations)
+11. [Appendix](#11-appendix)
+
+---
+
+## 1. Product Vision
+
+### Vision Statement
+
+> Enable staff to ask questions in plain English and get accurate, sourced answers from organizational data currently trapped in Monday.com boards, SharePoint documents, and other silos — surfacing hidden connections that no one knew existed.
+
+### Product in a Tweet
+
+> "Ask your org's data anything. Our knowledge graph connects Monday.com, SharePoint, and more — so you find answers, not files."
+
+### Strategic Alignment
+
+This product supports organizational goals to:
+- Reduce time spent searching for information across disconnected systems
+- Preserve institutional knowledge as staff transitions occur
+- Enable data-driven decision making through surfaced relationships
+- Lay groundwork for AI-assisted operations
+
+---
+
+## 2. Problem Statement
+
+### The Problem
+
+Staff spend significant time searching for information scattered across Monday.com boards, SharePoint folders, email threads, and colleagues' knowledge. When they find information, they often miss related context in other systems. Critical relationships between projects, people, and documents remain invisible.
+
+### Current State
+
+| Pain Point | Impact | Frequency |
+|------------|--------|-----------|
+| "Which board has that project?" | 15-30 min searching | Daily |
+| "Who worked on something similar?" | Tribal knowledge loss | Weekly |
+| "What documents relate to this task?" | Missed context, rework | Weekly |
+| "What's the status across all X projects?" | Manual aggregation | Monthly |
+| "What were the blockers last quarter?" | No cross-project view | Quarterly |
+
+### Why Now?
+
+- Organization is transitioning to Snowflake (infrastructure alignment opportunity)
+- Monday.com usage has reached critical mass (sufficient data to mine)
+- Local LLM technology has matured (cost-effective, private processing)
+- LazyGraphRAG reduces knowledge graph costs by 1000x (feasibility breakthrough)
+
+---
+
+## 3. User Personas
+
+### Persona 1: Program Manager (Primary)
+
+| Attribute | Details |
+|-----------|---------|
+| **Name** | Sarah, Program Manager |
+| **Role** | Oversees multiple projects across teams |
+| **Technical Skill** | Comfortable with Monday.com; not a developer |
+| **Goals** | Get cross-project visibility; find related work; prepare reports faster |
+| **Frustrations** | "I know we did something similar last year but can't find it"; "I have to check 5 boards to get the full picture" |
+| **Phase 1 Value** | Extracted data and entity reports reveal what exists across boards |
+| **Phase 2 Value** | Asks "What are all the open items related to federal reporting?" and gets a comprehensive answer in 30 seconds |
+
+### Persona 2: Analyst (Primary)
+
+| Attribute | Details |
+|-----------|---------|
+| **Name** | Marcus, Data Analyst |
+| **Role** | Produces reports, analyzes trends, supports decision-making |
+| **Technical Skill** | SQL proficient; Python familiar; wants to go deeper |
+| **Goals** | Answer ad-hoc questions quickly; find patterns across data; build on existing work |
+| **Frustrations** | "I rebuilt this analysis from scratch because I didn't know it existed"; "The context is in Monday.com comments but I can't search them" |
+| **Phase 1 Value** | NLP-extracted entities and concepts are available for analysis and export |
+| **Phase 2 Value** | Queries "Show me all work related to CFSR in the last 6 months" and gets items, documents, and people involved |
+
+### Persona 3: Technical Lead (Secondary)
+
+| Attribute | Details |
+|-----------|---------|
+| **Name** | David, Technical Lead |
+| **Role** | Maintains systems; evaluates new tools; supports data infrastructure |
+| **Technical Skill** | Developer; database experience; interested in AI/ML |
+| **Goals** | Build sustainable infrastructure; enable self-service for others; reduce support requests |
+| **Frustrations** | "People ask me where things are because search doesn't work"; "We have data everywhere but no connections" |
+| **Phase 1 Value** | Clean, structured extraction pipeline he can build on |
+| **Phase 2 Value** | System runs locally with minimal maintenance; can extend to new data sources; Snowflake migration path is clear |
+
+### Persona 4: Executive (Stakeholder)
+
+| Attribute | Details |
+|-----------|---------|
+| **Name** | Lisa, Division Director |
+| **Role** | Strategic oversight; resource allocation; reporting to leadership |
+| **Technical Skill** | End-user; not technical |
+| **Goals** | Quick answers for leadership questions; confidence in data accuracy; demonstrate innovation |
+| **Frustrations** | "I need to know X by end of day and no one can find it fast enough" |
+| **Phase 1 Value** | Sees proof of concept; data is being captured and structured |
+| **Phase 2 Value** | Staff can answer her questions immediately using the tool |
+
+---
+
+## 4. Phase Overview
+
+This project is divided into two distinct phases, each delivering standalone value while building toward the full vision.
+
+```
+Phase 1: Extraction & NLP Text Mining          Phase 2: Full Knowledge Graph
+──────────────────────────────────────          ──────────────────────────────
+
+ ┌──────────────────────────────────┐           ┌──────────────────────────────────┐
+ │  Monday.com Data Extraction      │           │  Neo4j Knowledge Graph Storage   │
+ │  • API connector (GraphQL)       │           │  • Schema implementation         │
+ │  • Boards, items, updates        │           │  • All node/relationship types   │
+ │  • People, column values         │    ───►   │  • Full-text indexes             │
+ │                                  │           │                                  │
+ │  NLP Text Mining                 │           │  Natural Language Query Interface │
+ │  • spaCy NER pipeline            │           │  • Text-to-Cypher (LangChain)    │
+ │  • Entity extraction             │           │  • Hybrid retrieval (graph+vector)│
+ │  • Concept co-occurrence         │           │  • LLM response generation       │
+ │  • Text chunking & embeddings    │           │  • Streamlit web UI              │
+ │                                  │           │                                  │
+ │  Structured Output               │           │  SharePoint Integration          │
+ │  • JSON/CSV exports              │           │  • Document indexing             │
+ │  • SQLite intermediate storage   │           │  • Cross-source linking          │
+ │  • Extraction reports            │           │                                  │
+ └──────────────────────────────────┘           │  Advanced Administration         │
+                                                │  • Admin panel                   │
+ DELIVERABLE: Extracted, structured,            │  • Monitoring & logging          │
+ NLP-enriched data from Monday.com              └──────────────────────────────────┘
+
+                                                DELIVERABLE: Full knowledge graph
+                                                with NL query interface, cross-source
+                                                search, and self-service answers
+```
+
+---
+
+## 5. Phase 1: Extraction & NLP Text Mining
+
+### 5.1 Phase 1 Scope & Goals
+
+**Goal:** Extract all organizational data from Monday.com, apply NLP text mining to discover entities, concepts, and relationships within the text, and produce structured, enriched outputs that can be queried and analyzed.
+
+**Phase 1 delivers standalone value by:**
+- Making Monday.com data searchable and exportable beyond the platform's native capabilities
+- Extracting entities (people, organizations, dates, domain concepts) from unstructured text in updates and descriptions
+- Identifying concept co-occurrence patterns across projects and boards
+- Producing structured datasets and reports that analysts can use immediately
+- Establishing the data foundation that Phase 2 will load into a full knowledge graph
+
+**Phase 1 does NOT include:**
+- Neo4j or any graph database
+- Natural language query interface
+- Streamlit web UI
+- SharePoint integration
+- LLM-based query answering
+
+---
+
+### 5.2 Epic 1: Monday.com Data Ingestion
+
+> As a **user**, I want **Monday.com data fully extracted and structured** so that **it can be processed, analyzed, and searched outside the platform**.
+
+| ID | User Story | Acceptance Criteria | Priority | Points |
+|----|------------|---------------------|----------|--------|
+| 1.1 | As a user, I want all Monday.com boards ingested so that no organizational data is missed | - All accessible boards extracted<br>- Board metadata (name, description, columns) captured<br>- Refresh can be triggered manually | Must Have | 5 |
+| 1.2 | As a user, I want all items and their column values indexed so that I can search task details | - Items linked to parent boards<br>- All column types parsed (status, date, people, text)<br>- Subitems included | Must Have | 8 |
+| 1.3 | As a user, I want updates/comments indexed so that discussion context is searchable | - Update text extracted<br>- Author and timestamp captured<br>- Linked to parent item | Must Have | 5 |
+| 1.4 | As a user, I want people extracted as entities so that I can find who worked on what | - Users mapped to structured Person records<br>- Assignments tracked per item<br>- Mentions in text detected | Must Have | 3 |
+| 1.5 | As a technical user, I want incremental sync so that refreshes don't reprocess everything | - Track last sync timestamp<br>- Only fetch changed items<br>- Handle deleted items | Should Have | 5 |
+
+**Technical Notes:**
+```graphql
+# Core extraction query
+query GetBoardsWithItems($limit: Int!, $cursor: String) {
+  boards(limit: $limit, page: $cursor) {
+    id
+    name
+    description
+    columns { id title type }
+    items_page(limit: 100) {
+      cursor
+      items {
+        id
+        name
+        column_values { id text value type }
+        updates(limit: 25) {
+          id
+          body
+          created_at
+          creator { id name email }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+### 5.3 Epic 2: Text Processing & Entity Extraction
+
+> As a **user**, I want **entities and concepts automatically extracted from text** so that **I can discover people, topics, and patterns hidden in Monday.com data**.
+
+| ID | User Story | Acceptance Criteria | Priority | Points |
+|----|------------|---------------------|----------|--------|
+| 2.1 | As a user, I want key concepts extracted from item descriptions and updates | - Noun phrases identified<br>- Domain terms recognized<br>- Concepts stored as structured records | Must Have | 5 |
+| 2.2 | As a user, I want people, dates, and organizations recognized in text | - spaCy NER pipeline applied<br>- Entities deduplicated against known records<br>- New entities flagged for review | Must Have | 5 |
+| 2.3 | As a user, I want concept co-occurrence tracked so that related ideas are connected | - Concept co-occurrence matrix built<br>- Frequency-weighted relationships between concepts<br>- Results exportable as CSV/JSON | Must Have | 8 |
+| 2.4 | As a user, I want text chunks embedded for future semantic search | - Chunks created from long text fields<br>- Embeddings generated locally (sentence-transformers)<br>- Embeddings stored alongside source text | Must Have | 5 |
+| 2.5 | As a user, I want extraction results available as structured reports | - Entity summary reports (people, orgs, concepts by frequency)<br>- Co-occurrence reports<br>- Per-board and cross-board breakdowns | Must Have | 3 |
+| 2.6 | As a technical user, I want LLM-based extraction for complex relationships | - Ollama/Llama integration for relationship extraction<br>- Relationship prompts configurable<br>- Fallback to NLP if LLM unavailable | Should Have | 8 |
+
+**Technical Notes:**
+```python
+# NLP Pipeline Configuration
+import spacy
+
+nlp = spacy.load("en_core_web_lg")
+
+def extract_entities(text: str) -> dict:
+    doc = nlp(text)
+    return {
+        "entities": [(ent.text, ent.label_) for ent in doc.ents],
+        "noun_phrases": [chunk.text for chunk in doc.noun_chunks],
+        "tokens": [token.lemma_ for token in doc if not token.is_stop]
+    }
+```
+
+---
+
+### 5.4 Epic 3: Extraction Data Storage
+
+> As a **technical user**, I want **extracted and enriched data stored in a queryable intermediate format** so that **it can be analyzed immediately and loaded into the knowledge graph in Phase 2**.
+
+| ID | User Story | Acceptance Criteria | Priority | Points |
+|----|------------|---------------------|----------|--------|
+| 3.1 | As a technical user, I want extracted Monday.com data stored in SQLite | - All boards, items, updates, and people in relational tables<br>- Foreign keys maintain relationships<br>- Queryable via SQL | Must Have | 5 |
+| 3.2 | As a user, I want extracted entities stored with source references | - Entities linked back to source items/updates<br>- Entity type, text, and confidence stored<br>- Deduplication applied | Must Have | 3 |
+| 3.3 | As a user, I want concept co-occurrence data stored and queryable | - Co-occurrence pairs with frequency weights<br>- Filterable by minimum frequency<br>- Source items referenced | Must Have | 3 |
+| 3.4 | As a user, I want embeddings stored locally for Phase 2 loading | - ChromaDB or local file-based vector storage<br>- Embeddings linked to source text chunks<br>- Retrievable by similarity query | Should Have | 3 |
+| 3.5 | As a technical user, I want data exportable as JSON and CSV | - Full export to JSON for graph loading<br>- CSV exports for analyst consumption<br>- Export scripts documented | Must Have | 2 |
+
+---
+
+### 5.5 Epic 4: Extraction Administration & Operations
+
+> As a **technical user**, I want **tools to manage and monitor the extraction pipeline** so that **I can run, troubleshoot, and validate data extraction**.
+
+| ID | User Story | Acceptance Criteria | Priority | Points |
+|----|------------|---------------------|----------|--------|
+| 4.1 | As a technical user, I want to trigger full or incremental extraction via CLI | - CLI command for full extraction<br>- CLI command for incremental sync<br>- Progress output to console | Must Have | 2 |
+| 4.2 | As a technical user, I want to view extraction status and logs | - Last extraction timestamp shown<br>- Record counts per entity type<br>- Errors logged with details | Should Have | 3 |
+| 4.3 | As a technical user, I want to configure which boards to include or exclude | - Configuration file (YAML/JSON)<br>- Include/exclude patterns by board name or ID<br>- Changes applied on next extraction | Should Have | 3 |
+| 4.4 | As a technical user, I want to clear and re-run extraction from scratch | - Full reset command<br>- Confirmation required<br>- Rebuild from fresh API pull | Should Have | 2 |
+| 4.5 | As a technical user, I want extraction quality validation | - Sample-based accuracy check on NER output<br>- Entity count sanity checks<br>- Extraction summary report after each run | Should Have | 3 |
+
+---
+
+### 5.6 Phase 1 Technical Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           CLI / SCRIPTS INTERFACE                            │
+│    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                 │
+│    │ Extract CLI  │    │  Reports     │    │   Export     │                 │
+│    │  Commands    │    │  Generator   │    │  (JSON/CSV)  │                 │
+│    └──────────────┘    └──────────────┘    └──────────────┘                 │
+└────────────────────────────────┬────────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          PROCESSING LAYER                                    │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐           │
+│  │ NLP Pipeline     │  │ LLM Extraction   │  │ Concept Mining   │           │
+│  │ (spaCy)          │  │ (Ollama)         │  │                  │           │
+│  │ • NER            │  │ • Complex rels   │  │ • Co-occurrence  │           │
+│  │ • Noun phrases   │  │ • Summarization  │  │ • Frequency      │           │
+│  │ • Tokenization   │  │ • Fallback mode  │  │ • Clustering     │           │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘           │
+│                                                                             │
+│  ┌──────────────────┐  ┌──────────────────┐                                 │
+│  │ Text Chunker     │  │ Embedding Gen    │                                 │
+│  │ • Split long text│  │ (sentence-       │                                 │
+│  │ • Overlap        │  │  transformers)   │                                 │
+│  └──────────────────┘  └──────────────────┘                                 │
+└────────────────────────────────┬────────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          STORAGE LAYER                                       │
+│  ┌─────────────────────────────┐    ┌─────────────────────────────┐         │
+│  │         SQLite              │    │   Local File / ChromaDB     │         │
+│  │  • Boards, Items, Updates   │    │  • Text chunk embeddings    │         │
+│  │  • People, Entities         │    │  • Ready for Phase 2        │         │
+│  │  • Concepts, Co-occurrences │    │    graph loading            │         │
+│  │  • Export-ready structure   │    │                             │         │
+│  └─────────────────────────────┘    └─────────────────────────────┘         │
+└────────────────────────────────┬────────────────────────────────────────────┘
+                                 │
+                                 ▲
+┌────────────────────────────────┴────────────────────────────────────────────┐
+│                          INGESTION LAYER                                     │
+│  ┌──────────────────────────────────────────────────────────┐               │
+│  │              Monday.com Connector                        │               │
+│  │              (GraphQL API)                               │               │
+│  │   • Authentication          • Rate limiting              │               │
+│  │   • Pagination              • Incremental sync           │               │
+│  │   • Full extraction         • Error handling             │               │
+│  └──────────────────────────────────────────────────────────┘               │
+└────────────────────────────────┬────────────────────────────────────────────┘
+                                 │
+                                 ▲
+┌────────────────────────────────┴────────────────────────────────────────────┐
+│                           DATA SOURCE                                        │
+│  ┌──────────────────────────────────────────────────────────┐               │
+│  │                    Monday.com                            │               │
+│  │             Boards, Items, Updates, People               │               │
+│  └──────────────────────────────────────────────────────────┘               │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 5.7 Phase 1 Technology Stack
+
+| Component | Technology | Version | License | Why This Choice |
+|-----------|------------|---------|---------|-----------------|
+| NLP | spaCy | 3.7+ | MIT | Fast; production-ready; good NER |
+| Embeddings | sentence-transformers | 2.x | Apache 2.0 | Local; no API costs |
+| Local LLM (optional) | Ollama + Llama 3.2 8B | Latest | MIT / Meta | Complex relationship extraction; fallback to NLP-only |
+| Intermediate Storage | SQLite | 3.x | Public Domain | Zero-config; portable; SQL queryable |
+| Vector Storage | ChromaDB | 0.4+ | Apache 2.0 | Lightweight; embeddable; Python-native |
+| Language | Python | 3.11+ | PSF | Ecosystem; team familiarity |
+| HTTP Client | httpx | 0.25+ | BSD | Async support for Ollama; modern |
+| Config | python-dotenv + pydantic | Latest | MIT | Typed config; env file support |
+
+### LLM Configuration (Phase 1 - Optional)
+```yaml
+# config/llm_settings.yaml
+local_llm:
+  provider: ollama
+  model: llama3.2:8b
+  base_url: http://localhost:11434
+  temperature: 0.1  # Low for factual extraction
+  context_window: 8192
+
+  # Fallback for larger context needs
+  fallback_model: llama3.2:70b-instruct-q4_K_M  # Quantized for memory
+
+embedding_model:
+  provider: sentence-transformers
+  model: all-MiniLM-L6-v2
+  dimension: 384
+```
+
+> **Note:** In Phase 1, the LLM (Ollama) is used exclusively for text mining tasks — entity and relationship extraction from unstructured text. It is NOT used for query answering, which is a Phase 2 capability.
+
+---
+
+### 5.8 Phase 1 Data Model
+
+#### Extraction Output Schema (SQLite)
+
+```sql
+-- Boards
+CREATE TABLE boards (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    state TEXT,
+    board_kind TEXT,
+    created_at TEXT,
+    extracted_at TEXT NOT NULL
+);
+
+-- Items
+CREATE TABLE items (
+    id TEXT PRIMARY KEY,
+    board_id TEXT NOT NULL REFERENCES boards(id),
+    name TEXT NOT NULL,
+    status TEXT,
+    priority TEXT,
+    due_date TEXT,
+    text_content TEXT,       -- Aggregated text from columns
+    created_at TEXT,
+    updated_at TEXT,
+    extracted_at TEXT NOT NULL
+);
+
+-- Subitems
+CREATE TABLE subitems (
+    id TEXT PRIMARY KEY,
+    parent_item_id TEXT NOT NULL REFERENCES items(id),
+    name TEXT NOT NULL,
+    column_values_json TEXT,  -- Stored as JSON
+    extracted_at TEXT NOT NULL
+);
+
+-- Updates (comments)
+CREATE TABLE updates (
+    id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL REFERENCES items(id),
+    body TEXT,
+    text_body TEXT,
+    creator_id TEXT REFERENCES people(id),
+    created_at TEXT,
+    extracted_at TEXT NOT NULL
+);
+
+-- People
+CREATE TABLE people (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT,
+    source TEXT DEFAULT 'monday.com',
+    extracted_at TEXT NOT NULL
+);
+
+-- Item-Person assignments
+CREATE TABLE assignments (
+    item_id TEXT NOT NULL REFERENCES items(id),
+    person_id TEXT NOT NULL REFERENCES people(id),
+    PRIMARY KEY (item_id, person_id)
+);
+
+-- Extracted entities (from NLP)
+CREATE TABLE entities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    text TEXT NOT NULL,
+    label TEXT NOT NULL,          -- PERSON, ORG, DATE, CONCEPT, etc.
+    source_type TEXT NOT NULL,    -- 'item', 'update'
+    source_id TEXT NOT NULL,
+    confidence REAL,
+    extracted_at TEXT NOT NULL
+);
+
+-- Concepts (deduplicated entities/noun phrases)
+CREATE TABLE concepts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    type TEXT,                    -- topic, domain_term, etc.
+    frequency INTEGER DEFAULT 1,
+    extracted_at TEXT NOT NULL
+);
+
+-- Concept co-occurrence
+CREATE TABLE concept_cooccurrence (
+    concept_a_id INTEGER NOT NULL REFERENCES concepts(id),
+    concept_b_id INTEGER NOT NULL REFERENCES concepts(id),
+    weight INTEGER DEFAULT 1,     -- co-occurrence frequency
+    source_count INTEGER,         -- number of distinct sources
+    PRIMARY KEY (concept_a_id, concept_b_id)
+);
+
+-- Text chunks (for embedding storage)
+CREATE TABLE text_chunks (
+    id TEXT PRIMARY KEY,
+    source_type TEXT NOT NULL,    -- 'item', 'update'
+    source_id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    position INTEGER,
+    embedding_id TEXT             -- Reference to ChromaDB vector
+);
+
+-- Extraction run log
+CREATE TABLE extraction_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_type TEXT NOT NULL,       -- 'full', 'incremental'
+    started_at TEXT NOT NULL,
+    completed_at TEXT,
+    boards_processed INTEGER,
+    items_processed INTEGER,
+    updates_processed INTEGER,
+    entities_extracted INTEGER,
+    status TEXT DEFAULT 'running', -- 'running', 'completed', 'failed'
+    error_message TEXT
+);
+```
+
+---
+
+### 5.9 Phase 1 Integration Specifications
+
+#### Monday.com API
+
+##### Authentication
+```python
+# config/.env
+MONDAY_API_TOKEN=your_api_token_here
+MONDAY_API_URL=https://api.monday.com/v2
+```
+
+##### Rate Limiting Strategy
+```python
+# src/ingestion/monday_connector.py
+import time
+from functools import wraps
+
+COMPLEXITY_LIMIT = 10_000  # per minute
+COMPLEXITY_BUFFER = 1_000  # safety margin
+
+def rate_limit(complexity_cost: int):
+    """Decorator to handle Monday.com API rate limits."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Check remaining complexity
+            if self.complexity_used + complexity_cost > COMPLEXITY_LIMIT - COMPLEXITY_BUFFER:
+                sleep_time = 60 - (time.time() - self.window_start)
+                if sleep_time > 0:
+                    logger.info(f"Rate limit approaching, sleeping {sleep_time}s")
+                    time.sleep(sleep_time)
+                self.complexity_used = 0
+                self.window_start = time.time()
+
+            result = func(*args, **kwargs)
+            self.complexity_used += complexity_cost
+            return result
+        return wrapper
+    return decorator
+```
+
+##### Data Extraction Queries
+
+```graphql
+# Get all boards with metadata
+query GetBoards {
+  boards(limit: 100) {
+    id
+    name
+    description
+    state
+    board_kind
+    columns {
+      id
+      title
+      type
+      settings_str
+    }
+    owners {
+      id
+      name
+      email
+    }
+    created_at
+  }
+}
+
+# Get items with pagination
+query GetBoardItems($boardId: ID!, $cursor: String) {
+  boards(ids: [$boardId]) {
+    items_page(limit: 100, cursor: $cursor) {
+      cursor
+      items {
+        id
+        name
+        state
+        created_at
+        updated_at
+        column_values {
+          id
+          type
+          text
+          value
+          ... on PeopleValue {
+            persons_and_teams {
+              id
+              kind
+            }
+          }
+          ... on StatusValue {
+            index
+            label
+          }
+          ... on DateValue {
+            date
+            time
+          }
+        }
+        subitems {
+          id
+          name
+          column_values {
+            id
+            text
+          }
+        }
+      }
+    }
+  }
+}
+
+# Get updates (comments) for items
+query GetItemUpdates($itemId: ID!, $limit: Int!) {
+  items(ids: [$itemId]) {
+    updates(limit: $limit) {
+      id
+      body
+      text_body
+      created_at
+      creator {
+        id
+        name
+        email
+      }
+      replies {
+        id
+        body
+        text_body
+        created_at
+        creator {
+          id
+          name
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+### 5.10 Phase 1 Success Metrics & KPIs
+
+| Metric | Baseline | Target | Measurement Method |
+|--------|----------|--------|-------------------|
+| **Data coverage** | 0% | 100% of Monday.com boards extracted | Board count vs. extracted count |
+| **Extraction completeness** | 0% | >95% of items and updates captured | Item count comparison (API vs. SQLite) |
+| **Entity extraction precision** | N/A | >80% accuracy on sample | Manual review of 100 extractions |
+| **Concept coverage** | N/A | 500+ unique concepts extracted | Concept table row count |
+| **Co-occurrence relationships** | N/A | 100+ meaningful concept pairs identified | Co-occurrence table with weight > 2 |
+| **Extraction pipeline reliability** | N/A | <5% failure rate per run | Extraction run log |
+| **Incremental sync speed** | N/A | <5 min for daily delta | Timed extraction runs |
+| **Export usability** | N/A | Analysts can load CSV/JSON into their tools | User validation |
+
+### North Star Metric (Phase 1)
+
+> **Extraction completeness & entity quality** — All Monday.com data captured with >80% NER precision, ready for Phase 2 graph loading.
+
+---
+
+### 5.11 Phase 1 Release Plan
+
+#### Sprint Structure (2-week sprints, 3 sprints = 6 weeks)
+
+```
+Phase 1: Extraction & NLP Text Mining (3 sprints = 6 weeks)
+═══════════════════════════════════════════════════════════════════════════════
+
+Sprint 1: Infrastructure & Monday.com Extraction
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ • Dev environment setup (Python, Ollama, spaCy)                             │
+│ • Monday.com API connector (auth, pagination, rate limiting)                │
+│ • Data extraction: boards, items, column values, subitems                   │
+│ • Data extraction: updates/comments with authors                            │
+│ • SQLite schema creation and data loading                                   │
+│ • Unit tests for connector and storage                                      │
+│ DELIVERABLE: Complete Monday.com data extraction pipeline                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Sprint 2: NLP Processing & Entity Extraction
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ • spaCy NLP pipeline integration                                            │
+│ • Named entity recognition (people, orgs, dates)                            │
+│ • Noun phrase / concept extraction                                          │
+│ • Entity deduplication and linking to known records                          │
+│ • Concept co-occurrence matrix generation                                   │
+│ • Text chunking and embedding generation (sentence-transformers)            │
+│ • Optional: Ollama LLM-based extraction for complex relationships           │
+│ DELIVERABLE: NLP-enriched extraction with entities and concepts             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Sprint 3: Reports, Export & Polish
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ • JSON and CSV export scripts                                               │
+│ • Entity summary reports (by type, frequency, board)                        │
+│ • Co-occurrence reports                                                     │
+│ • CLI tooling for full/incremental extraction                               │
+│ • Board include/exclude configuration                                       │
+│ • Extraction quality validation (sample accuracy check)                     │
+│ • Documentation                                                             │
+│ • Bug fixes and pipeline hardening                                          │
+│ DELIVERABLE: Phase 1 Release — complete extraction & NLP pipeline           │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Phase 1 Milestones
+
+| Milestone | Target | Key Deliverables |
+|-----------|--------|------------------|
+| P1-M1: Dev Environment | Week 1 | Python, spaCy, Ollama (optional) installed and verified |
+| P1-M2: Data Extraction | Week 2 | Monday.com data fully extracting into SQLite |
+| P1-M3: NLP Pipeline | Week 4 | Entities and concepts extracted; co-occurrence built |
+| P1-M4: Phase 1 Release | Week 6 | Exports, reports, CLI tools, documentation complete |
+
+---
+
+## 6. Phase 2: Full Knowledge Graph Implementation
+
+### 6.1 Phase 2 Scope & Goals
+
+**Goal:** Build a full knowledge graph from the Phase 1 extracted data, add a natural language query interface, integrate SharePoint as a second data source, and deliver a self-service tool that lets staff ask questions in plain English and get sourced answers.
+
+**Prerequisites:** Phase 1 must be complete. All Monday.com data must be extracted, NLP-enriched, and available in structured format (SQLite + embeddings).
+
+**Phase 2 delivers:**
+- Neo4j knowledge graph with all node types and relationships
+- LazyGraphRAG concept graph with community detection
+- ChromaDB vector database for semantic search
+- Natural language query interface (Streamlit web app)
+- Text-to-Cypher query generation (LangChain + Ollama)
+- LLM-based response generation with source attribution
+- SharePoint document indexing and cross-source search
+- Full administration panel
+
+---
+
+### 6.2 Epic 5: Knowledge Graph Storage
+
+> As a **user**, I want **extracted data stored in a queryable graph** so that **relationships can be traversed and explored**.
+
+| ID | User Story | Acceptance Criteria | Priority | Points |
+|----|------------|---------------------|----------|--------|
+| 5.1 | As a technical user, I want Neo4j running locally on Windows | - Neo4j Desktop installed<br>- Database created and accessible<br>- APOC plugin enabled | Must Have | 2 |
+| 5.2 | As a technical user, I want Phase 1 data loaded into the graph | - Loader reads Phase 1 SQLite + JSON exports<br>- All entity types created as nodes<br>- All structural relationships created<br>- Idempotent (re-runnable) | Must Have | 5 |
+| 5.3 | As a user, I want nodes created for all entity types | - Schema implemented per data model<br>- Properties indexed for search<br>- Unique constraints on IDs | Must Have | 3 |
+| 5.4 | As a user, I want relationships connecting related entities | - All relationship types implemented<br>- Bidirectional traversal works<br>- Relationship properties captured | Must Have | 5 |
+| 5.5 | As a user, I want LazyGraphRAG concept graph built | - Concept co-occurrence loaded from Phase 1<br>- Community detection applied<br>- CO_OCCURS relationships weighted | Must Have | 5 |
+| 5.6 | As a user, I want vector embeddings loaded for similarity search | - ChromaDB collection created from Phase 1 embeddings<br>- Embeddings linked to source nodes<br>- Similarity queries functional | Must Have | 3 |
+| 5.7 | As a technical user, I want the schema documented for Snowflake migration | - Schema mapping document created<br>- Snowflake DDL drafted<br>- Migration scripts outlined | Should Have | 3 |
+
+**Technical Notes:**
+```cypher
+// Schema constraints
+CREATE CONSTRAINT board_id IF NOT EXISTS FOR (b:Board) REQUIRE b.id IS UNIQUE;
+CREATE CONSTRAINT item_id IF NOT EXISTS FOR (i:Item) REQUIRE i.id IS UNIQUE;
+CREATE CONSTRAINT person_id IF NOT EXISTS FOR (p:Person) REQUIRE p.id IS UNIQUE;
+CREATE CONSTRAINT update_id IF NOT EXISTS FOR (u:Update) REQUIRE u.id IS UNIQUE;
+CREATE CONSTRAINT tag_id IF NOT EXISTS FOR (t:Tag) REQUIRE t.id IS UNIQUE;
+CREATE CONSTRAINT concept_name IF NOT EXISTS FOR (c:Concept) REQUIRE c.name IS UNIQUE;
+CREATE CONSTRAINT document_id IF NOT EXISTS FOR (d:Document) REQUIRE d.id IS UNIQUE;
+CREATE CONSTRAINT chunk_id IF NOT EXISTS FOR (tc:TextChunk) REQUIRE tc.id IS UNIQUE;
+
+// Indexes for search performance
+CREATE INDEX item_name IF NOT EXISTS FOR (i:Item) ON (i.name);
+CREATE INDEX item_status IF NOT EXISTS FOR (i:Item) ON (i.status);
+CREATE INDEX person_name IF NOT EXISTS FOR (p:Person) ON (p.name);
+CREATE INDEX concept_type IF NOT EXISTS FOR (c:Concept) ON (c.type);
+CREATE INDEX document_type IF NOT EXISTS FOR (d:Document) ON (d.type);
+
+// Full-text search indexes
+CREATE FULLTEXT INDEX item_fulltext IF NOT EXISTS
+  FOR (i:Item) ON EACH [i.name, i.text_content];
+CREATE FULLTEXT INDEX update_fulltext IF NOT EXISTS
+  FOR (u:Update) ON EACH [u.body];
+CREATE FULLTEXT INDEX concept_fulltext IF NOT EXISTS
+  FOR (c:Concept) ON EACH [c.name];
+```
+
+---
+
+### 6.3 Epic 6: Natural Language Query Interface
+
+> As a **user**, I want to **ask questions in plain English** and **get accurate, sourced answers**.
+
+| ID | User Story | Acceptance Criteria | Priority | Points |
+|----|------------|---------------------|----------|--------|
+| 6.1 | As a user, I want a web interface to type questions | - Streamlit app with text input<br>- Query submitted on enter/button<br>- Loading indicator shown | Must Have | 2 |
+| 6.2 | As a user, I want my question converted to a graph query | - Text-to-Cypher generation via LangChain<br>- Hybrid retrieval (graph + vector)<br>- Query logged for debugging | Must Have | 8 |
+| 6.3 | As a user, I want answers generated from retrieved context | - LLM synthesizes response<br>- Response cites sources<br>- Relevant items/docs listed | Must Have | 8 |
+| 6.4 | As a user, I want to see the sources behind an answer | - Clickable links to Monday.com items<br>- Document references shown<br>- Confidence/relevance indicated | Must Have | 3 |
+| 6.5 | As a user, I want to refine my query conversationally | - Chat history maintained<br>- Follow-up questions understood<br>- Context carried forward | Should Have | 5 |
+| 6.6 | As a user, I want example queries shown to help me start | - 5-10 example queries displayed<br>- Clicking populates input<br>- Examples cover common use cases | Should Have | 2 |
+
+**Technical Notes:**
+```python
+# Query pipeline (simplified)
+from langchain_community.graphs import Neo4jGraph
+from langchain.chains import GraphCypherQAChain
+
+graph = Neo4jGraph(url="bolt://localhost:7687", username="neo4j", password="...")
+
+chain = GraphCypherQAChain.from_llm(
+    llm=ollama_llm,
+    graph=graph,
+    verbose=True,
+    return_intermediate_steps=True,  # Shows generated Cypher
+    allow_dangerous_requests=True
+)
+
+response = chain.invoke({"query": "What items are assigned to Sarah?"})
+```
+
+---
+
+### 6.4 Epic 7: SharePoint Integration
+
+> As a **user**, I want **SharePoint documents indexed** so that **I can search across both project management and document storage**.
+
+| ID | User Story | Acceptance Criteria | Priority | Points |
+|----|------------|---------------------|----------|--------|
+| 7.1 | As a user, I want SharePoint document libraries connected | - Microsoft Graph API authenticated<br>- Target libraries configured<br>- Document metadata extracted | Must Have | 5 |
+| 7.2 | As a user, I want document text extracted and indexed | - PDF text extraction<br>- DOCX text extraction<br>- Text chunked and embedded | Must Have | 8 |
+| 7.3 | As a user, I want documents linked to related Monday.com items | - Entity resolution across sources<br>- REFERENCES relationships created<br>- Manual linking supported | Should Have | 8 |
+| 7.4 | As a user, I want to search documents and tasks together | - Unified query interface<br>- Results show source type<br>- Cross-source relationships visible | Must Have | 5 |
+
+---
+
+### 6.5 Epic 8: Cross-Source Intelligence & Administration
+
+> As a **technical user**, I want **full administrative tools and cross-source capabilities** so that **the system can be maintained, monitored, and extended**.
+
+| ID | User Story | Acceptance Criteria | Priority | Points |
+|----|------------|---------------------|----------|--------|
+| 8.1 | As a technical user, I want to trigger graph refresh from the UI | - Refresh button in admin panel<br>- Runs Phase 1 extraction then graph reload<br>- Progress indicator and error reporting | Must Have | 3 |
+| 8.2 | As a technical user, I want to view sync status and logs in the UI | - Last sync timestamp shown<br>- Record counts displayed per node type<br>- Errors logged with details | Should Have | 3 |
+| 8.3 | As a technical user, I want to configure data sources from the UI | - Board include/exclude in admin panel<br>- SharePoint library selection<br>- Changes applied on next sync | Should Have | 3 |
+| 8.4 | As a technical user, I want to clear and rebuild the graph | - Full reset command<br>- Confirmation required<br>- Rebuild from Phase 1 extraction data | Should Have | 2 |
+| 8.5 | As a user, I want entity resolution across Monday.com and SharePoint | - Same person/concept detected across sources<br>- Merged into single node with multiple source references<br>- Confidence score on matches | Should Have | 5 |
+
+---
+
+### 6.6 Phase 2 Technical Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              USER INTERFACE                                  │
+│                         Streamlit Web Application                            │
+│    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                    │
+│    │ Query Input │    │  Results    │    │   Admin     │                    │
+│    │   + Chat    │    │  Display    │    │   Panel     │                    │
+│    └─────────────┘    └─────────────┘    └─────────────┘                    │
+└────────────────────────────────┬────────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                             QUERY LAYER                                      │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐           │
+│  │ Text-to-Cypher   │  │ Vector Search    │  │ Response Gen     │           │
+│  │ (LangChain)      │  │ (ChromaDB)       │  │ (Ollama/Llama)   │           │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘           │
+└────────────────────────────────┬────────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            STORAGE LAYER                                     │
+│  ┌─────────────────────────────┐    ┌─────────────────────────────┐         │
+│  │        Neo4j Desktop        │    │         ChromaDB            │         │
+│  │  • Nodes: Board, Item,      │    │  • Text chunk embeddings    │         │
+│  │    Person, Concept, Tag,    │    │  • Semantic similarity      │         │
+│  │    Document, TextChunk      │    │  • Local persistence        │         │
+│  │  • Relationships: 15 types  │    │                             │         │
+│  │  • Full-text indexes        │    │                             │         │
+│  └─────────────────────────────┘    └─────────────────────────────┘         │
+└────────────────────────────────┬────────────────────────────────────────────┘
+                                 │
+                                 ▲
+┌────────────────────────────────┴────────────────────────────────────────────┐
+│                     GRAPH LOADING LAYER                                      │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐           │
+│  │ Phase 1 Data     │  │ LazyGraphRAG     │  │ SharePoint Data  │           │
+│  │ Loader           │  │ (Microsoft)      │  │ Loader           │           │
+│  │ • SQLite → Neo4j │  │ • Concept graph  │  │ • Documents →    │           │
+│  │ • JSON import    │  │ • Communities    │  │   Neo4j nodes    │           │
+│  │ • Embeddings →   │  │ • Co-occurrence  │  │ • Text → chunks  │           │
+│  │   ChromaDB       │  │   weighting     │  │   → embeddings   │           │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘           │
+└────────────────────────────────┬────────────────────────────────────────────┘
+                                 │
+                                 ▲
+┌────────────────────────────────┴────────────────────────────────────────────┐
+│                          DATA SOURCES                                        │
+│  ┌─────────────────────────────┐    ┌─────────────────────────────┐         │
+│  │   Phase 1 Extraction Output │    │       SharePoint            │         │
+│  │   SQLite + JSON + ChromaDB  │    │   Documents, Libraries      │         │
+│  │   (from Monday.com)         │    │   (Microsoft Graph API)     │         │
+│  └─────────────────────────────┘    └─────────────────────────────┘         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Component Interactions
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   User       │     │  Streamlit   │     │   Query      │
+│   Browser    │────▶│  Frontend    │────▶│   Router     │
+└──────────────┘     └──────────────┘     └──────┬───────┘
+                                                  │
+                           ┌──────────────────────┼──────────────────────┐
+                           │                      │                      │
+                           ▼                      ▼                      ▼
+                    ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
+                    │ Text-to-     │      │ Vector       │      │ Direct       │
+                    │ Cypher       │      │ Similarity   │      │ Cypher       │
+                    │ (LLM)        │      │ Search       │      │ (Advanced)   │
+                    └──────┬───────┘      └──────┬───────┘      └──────┬───────┘
+                           │                      │                      │
+                           ▼                      ▼                      │
+                    ┌──────────────┐      ┌──────────────┐              │
+                    │   Neo4j      │      │  ChromaDB    │              │
+                    │   Query      │◀─────│  Query       │              │
+                    └──────┬───────┘      └──────────────┘              │
+                           │                                            │
+                           └───────────────────┬────────────────────────┘
+                                               │
+                                               ▼
+                                        ┌──────────────┐
+                                        │   Response   │
+                                        │   Generator  │
+                                        │   (LLM)      │
+                                        └──────┬───────┘
+                                               │
+                                               ▼
+                                        ┌──────────────┐
+                                        │   Formatted  │
+                                        │   Response   │
+                                        │   + Sources  │
+                                        └──────────────┘
+```
+
+---
+
+### 6.7 Phase 2 Technology Stack (Additions)
+
+Phase 2 adds the following technologies to the Phase 1 stack:
+
+| Component | Technology | Version | License | Why This Choice |
+|-----------|------------|---------|---------|-----------------|
+| Graph Database | Neo4j Desktop | 5.x | Community (free) | Best-in-class graph queries; Cypher language; local install |
+| RAG Framework | LazyGraphRAG | Latest | MIT | 1000x cheaper than GraphRAG; proven quality |
+| Orchestration | LangChain | 0.1+ | MIT | Neo4j integration; prompt management |
+| Web UI | Streamlit | 1.x | Apache 2.0 | Rapid prototyping; Python-native |
+| SharePoint Auth | msal | 1.24+ | MIT | Microsoft Graph API authentication |
+| Document Parsing | python-docx, PyPDF2 | Latest | MIT / BSD | SharePoint document text extraction |
+
+### Why LazyGraphRAG?
+
+| Factor | GraphRAG | LazyGraphRAG | Winner |
+|--------|----------|--------------|--------|
+| Indexing cost | ~$50-150 for 500 pages | ~$0.05-0.15 | LazyGraphRAG |
+| Query cost (global) | High | 700x lower | LazyGraphRAG |
+| Local query quality | Good | Better (benchmarks) | LazyGraphRAG |
+| Global query quality | Excellent | Comparable | Tie |
+| Pre-computed summaries | Yes (reusable) | No | GraphRAG |
+| Streaming/real-time | Expensive to update | Cheap | LazyGraphRAG |
+| MVP development | Slow iteration | Fast iteration | LazyGraphRAG |
+
+**Decision:** LazyGraphRAG for Phase 2 launch. Re-evaluate full GraphRAG if pre-computed summaries prove valuable.
+
+---
+
+### 6.8 Phase 2 Data Model & Schema
+
+#### Node Types
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              NODE TYPES                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  FROM PHASE 1 (loaded into graph)                                           │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐     │
+│  │   Board     │   │    Item     │   │   Person    │   │   Concept   │     │
+│  ├─────────────┤   ├─────────────┤   ├─────────────┤   ├─────────────┤     │
+│  │ id: string  │   │ id: string  │   │ id: string  │   │ name: string│     │
+│  │ name: string│   │ name: string│   │ name: string│   │ type: string│     │
+│  │ description │   │ status      │   │ email       │   │ frequency   │     │
+│  │ created_at  │   │ priority    │   │ role        │   │ embedding[] │     │
+│  │ source      │   │ due_date    │   │ source      │   │             │     │
+│  └─────────────┘   │ text_content│   └─────────────┘   └─────────────┘     │
+│                    │ source      │                                          │
+│                    └─────────────┘                                          │
+│                                                                             │
+│  ┌─────────────┐   ┌─────────────┐                                          │
+│  │   Update    │   │    Tag      │                                          │
+│  ├─────────────┤   ├─────────────┤                                          │
+│  │ id: string  │   │ id: string  │                                          │
+│  │ body: text  │   │ name: string│                                          │
+│  │ created_at  │   │ color       │                                          │
+│  │ source      │   │             │                                          │
+│  └─────────────┘   └─────────────┘                                          │
+│                                                                             │
+│  NEW IN PHASE 2                                                             │
+│  ┌─────────────┐   ┌─────────────┐                                          │
+│  │  Document   │   │  TextChunk  │                                          │
+│  ├─────────────┤   ├─────────────┤                                          │
+│  │ id: string  │   │ id: string  │                                          │
+│  │ name: string│   │ text: text  │                                          │
+│  │ path: string│   │ embedding[] │                                          │
+│  │ type: string│   │ source_id   │                                          │
+│  │ author      │   │ position    │                                          │
+│  │ created_at  │   └─────────────┘                                          │
+│  │ source      │                                                            │
+│  └─────────────┘                                                            │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Relationship Types
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           RELATIONSHIPS                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  STRUCTURAL (from Monday.com — loaded from Phase 1 data)                   │
+│  ─────────────────────────────────────────────────────────                  │
+│  (Item)-[:BELONGS_TO]->(Board)                                              │
+│  (Item)-[:ASSIGNED_TO]->(Person)                                            │
+│  (Item)-[:HAS_UPDATE]->(Update)                                             │
+│  (Update)-[:CREATED_BY]->(Person)                                           │
+│  (Item)-[:TAGGED_WITH]->(Tag)                                               │
+│  (Item)-[:HAS_SUBITEM]->(Item)                                              │
+│  (Item)-[:DEPENDS_ON]->(Item)           # If dependency column exists       │
+│                                                                             │
+│  EXTRACTED (from Phase 1 NLP/LLM output)                                   │
+│  ────────────────────────────────────────                                   │
+│  (Update)-[:MENTIONS]->(Concept)                                            │
+│  (Update)-[:MENTIONS]->(Person)         # @mentions in text                 │
+│  (Item)-[:RELATED_TO {score}]->(Item)   # Semantic similarity               │
+│  (Concept)-[:CO_OCCURS {weight}]->(Concept)  # From Phase 1 co-occurrence  │
+│  (TextChunk)-[:SIMILAR {score}]->(TextChunk) # Vector kNN                   │
+│                                                                             │
+│  CROSS-SOURCE (new in Phase 2)                                              │
+│  ──────────────────────────────                                             │
+│  (Document)-[:REFERENCES]->(Item)                                           │
+│  (Document)-[:AUTHORED_BY]->(Person)                                        │
+│  (Document)-[:CONTAINS]->(TextChunk)                                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Snowflake Migration Mapping (Future Reference)
+
+| Neo4j | Snowflake Equivalent |
+|-------|---------------------|
+| `(:Item)` node | `ITEMS` hybrid table |
+| `(:Person)` node | `PERSONS` hybrid table |
+| `[:ASSIGNED_TO]` relationship | Graph edge or junction table |
+| `[:CO_OCCURS {weight}]` | Graph edge with properties |
+| Vector property | `VECTOR(FLOAT, 384)` column |
+| Cypher traversal | Snowflake graph SQL |
+| Full-text index | Cortex SEARCH service |
+
+---
+
+### 6.9 Phase 2 Integration Specifications
+
+#### SharePoint Integration
+
+##### Authentication Flow
+```python
+# Azure AD App Registration required
+# Permissions: Sites.Read.All, Files.Read.All
+
+from msal import ConfidentialClientApplication
+
+app = ConfidentialClientApplication(
+    client_id=os.getenv("AZURE_CLIENT_ID"),
+    client_credential=os.getenv("AZURE_CLIENT_SECRET"),
+    authority=f"https://login.microsoftonline.com/{os.getenv('AZURE_TENANT_ID')}"
+)
+
+token = app.acquire_token_for_client(
+    scopes=["https://graph.microsoft.com/.default"]
+)
+```
+
+##### Document Retrieval
+```python
+# List documents in a library
+GET https://graph.microsoft.com/v1.0/sites/{site-id}/drive/root/children
+
+# Download document content
+GET https://graph.microsoft.com/v1.0/sites/{site-id}/drive/items/{item-id}/content
+
+# Get document metadata
+GET https://graph.microsoft.com/v1.0/sites/{site-id}/drive/items/{item-id}
+```
+
+---
+
+### 6.10 Phase 2 Success Metrics & KPIs
+
+| Metric | Baseline | Target | Measurement Method |
+|--------|----------|--------|-------------------|
+| **Query success rate** | N/A | >80% of queries return useful results | User feedback thumbs up/down |
+| **Time to answer** | 15-30 min manual | <1 min via tool | User survey; time tracking |
+| **SharePoint documents indexed** | 0% | 80%+ of target libraries | Document count |
+| **Cross-source queries successful** | N/A | >70% | User feedback |
+| **Document-to-item links created** | 0 | 50+ | Relationship count |
+| **Weekly active users** | 0 | 5+ in pilot | Login/query tracking |
+| **Queries per user per week** | 0 | 10+ | Query logs |
+| **System uptime (local)** | N/A | >95% during work hours | Availability monitoring |
+
+### North Star Metric (Phase 2)
+
+> **Time saved per user per week** — Target: 2+ hours reclaimed from information searching.
+
+---
+
+### 6.11 Phase 2 Release Plan
+
+#### Sprint Structure (2-week sprints, 4 sprints = 8 weeks)
+
+```
+Phase 2: Full Knowledge Graph (4 sprints = 8 weeks)
+═══════════════════════════════════════════════════════════════════════════════
+
+Sprint 4: Neo4j Setup & Graph Loading
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ • Neo4j Desktop installation and configuration                              │
+│ • Schema implementation (constraints, indexes, full-text)                   │
+│ • Phase 1 data loader (SQLite/JSON → Neo4j nodes + relationships)           │
+│ • LazyGraphRAG concept graph and community detection                        │
+│ • ChromaDB vector store loading from Phase 1 embeddings                     │
+│ DELIVERABLE: Populated, queryable knowledge graph                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Sprint 5: Natural Language Query Interface
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ • Text-to-Cypher with LangChain + Ollama                                    │
+│ • Hybrid retrieval (graph + vector)                                         │
+│ • LLM response generation with source attribution                           │
+│ • Streamlit web UI (query input, results display, source links)             │
+│ • Example queries and onboarding                                            │
+│ • Query logging                                                             │
+│ DELIVERABLE: Working NL query interface                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Sprint 6: SharePoint Integration
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ • Azure AD authentication setup                                             │
+│ • SharePoint connector (Microsoft Graph API)                                │
+│ • Document text extraction (PDF, DOCX)                                      │
+│ • Document nodes and relationships in graph                                 │
+│ • NLP pipeline applied to document text                                     │
+│ • Cross-source entity resolution                                            │
+│ DELIVERABLE: SharePoint documents indexed in knowledge graph                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Sprint 7: Polish, Administration & Release
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ • Admin panel in Streamlit (sync status, config, logs)                      │
+│ • Conversational memory for follow-up queries                               │
+│ • Cross-source query refinement                                             │
+│ • User testing & feedback incorporation                                     │
+│ • Documentation (user guide, architecture, API reference)                   │
+│ • Bug fixes and performance tuning                                          │
+│ DELIVERABLE: Phase 2 Release — full knowledge graph platform                │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Phase 2 Milestones
+
+| Milestone | Target | Key Deliverables |
+|-----------|--------|------------------|
+| P2-M1: Graph Loaded | Week 8 | Neo4j populated from Phase 1 data; queryable via Cypher |
+| P2-M2: NL Query Working | Week 10 | Streamlit UI; ask questions → get answers with sources |
+| P2-M3: SharePoint Connected | Week 12 | Documents indexed; cross-source search functional |
+| P2-M4: Phase 2 Release | Week 14 | Admin panel, polish, documentation, user-tested |
+
+---
+
+## 7. User Journey Maps
+
+### Journey 1: Program Manager Finds Related Work (Phase 2)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TRIGGER: Sarah needs to find all work related to "federal reporting"        │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ 1. OPEN APP     │────▶│ 2. TYPE QUERY   │────▶│ 3. REVIEW       │
+│                 │     │                 │     │    RESULTS      │
+│ Sarah opens     │     │ "What items     │     │ System shows:   │
+│ KnowledgeGraph  │     │ relate to       │     │ • 12 items      │
+│ in browser      │     │ federal         │     │ • 3 boards      │
+│                 │     │ reporting?"     │     │ • 5 people      │
+│                 │     │                 │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        │                                               │
+        │                                               ▼
+        │                                       ┌─────────────────┐
+        │                                       │ 4. DRILL DOWN   │
+        │                                       │                 │
+        │                                       │ Clicks on item  │
+        │                                       │ → Opens in      │
+        │                                       │   Monday.com    │
+        │                                       │                 │
+        │                                       └─────────────────┘
+        │                                               │
+        ▼                                               ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ OUTCOME: Found related work in 2 minutes vs. 30+ minutes manual search      │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Journey 2: Analyst Uses Phase 1 Extraction Reports (Phase 1)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TRIGGER: Marcus wants to understand what topics appear across projects       │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ 1. RUN          │────▶│ 2. REVIEW       │────▶│ 3. EXPORT       │
+│    EXTRACTION   │     │    REPORTS      │     │    DATA         │
+│                 │     │                 │     │                 │
+│ Triggers CLI    │     │ Reviews entity  │     │ Exports CSV     │
+│ extraction      │     │ summary and     │     │ of concept co-  │
+│ pipeline        │     │ co-occurrence   │     │ occurrence for  │
+│                 │     │ reports         │     │ deeper analysis │
+│                 │     │                 │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        │                                               │
+        ▼                                               ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ OUTCOME: Discovered concept patterns across boards without manual review    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Journey 3: Analyst Discovers Connections (Phase 2)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TRIGGER: Marcus wonders "What topics come up together with CFSR?"           │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ 1. EXPLORE      │────▶│ 2. ASK PATTERN  │────▶│ 3. DISCOVER     │
+│    CONCEPTS     │     │    QUESTION     │     │    INSIGHT      │
+│                 │     │                 │     │                 │
+│ Browses concept │     │ "What concepts  │     │ System shows:   │
+│ graph visual    │     │ co-occur with   │     │ • "timeliness"  │
+│ (Neo4j Bloom    │     │ CFSR most       │     │ • "permanency"  │
+│ or Streamlit)   │     │ frequently?"    │     │ • "case review" │
+│                 │     │                 │     │ with weights    │
+│                 │     │                 │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        │                                               │
+        │                                               ▼
+        │                                       ┌─────────────────┐
+        │                                       │ 4. EXPORT FOR   │
+        │                                       │    ANALYSIS     │
+        │                                       │                 │
+        │                                       │ Exports results │
+        │                                       │ to CSV/Excel    │
+        │                                       │ for deeper work │
+        │                                       │                 │
+        │                                       └─────────────────┘
+        │                                               │
+        ▼                                               ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ OUTCOME: Discovered relationship pattern that informs quarterly analysis    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 8. Assumptions & Constraints
+
+### Assumptions
+
+| ID | Assumption | Applies To | Impact if Wrong | Mitigation |
+|----|------------|------------|-----------------|------------|
+| A1 | Monday.com API access will be granted | Phase 1 | Project blocked | Confirm access before sprint 1 |
+| A2 | 16GB RAM sufficient for Llama 3.2 8B | Phase 1 & 2 | Performance issues | Test early; have quantized fallback |
+| A3 | Staff will adopt natural language interface | Phase 2 | Low usage | User testing in sprint 5; iterate UX |
+| A4 | Monday.com data is reasonably clean | Phase 1 | Poor extraction quality | Data quality audit; cleaning pipeline |
+| A5 | Local deployment acceptable for MVP | Phase 1 & 2 | Need cloud hosting | Scoped as local-first; cloud later |
+| A6 | English language only | Phase 1 & 2 | Miss non-English content | Document as constraint; expand later |
+| A7 | Phase 1 output format sufficient for Phase 2 loading | Phase 2 | Rework needed | Design Phase 1 schema with Phase 2 in mind |
+
+### Constraints
+
+| ID | Constraint | Applies To | Rationale | Impact |
+|----|------------|------------|-----------|--------|
+| C1 | Windows development environment | Phase 1 & 2 | Team standard | Limits some Linux-only tools |
+| C2 | No cloud LLM APIs in Phase 1 | Phase 1 | Cost control; privacy | Limits model quality |
+| C3 | Single-user local deployment | Phase 1 & 2 | MVP scope | No concurrent access |
+| C4 | No real-time sync | Phase 1 & 2 | Complexity; API limits | Data up to 24h stale |
+| C5 | Budget: $0 infrastructure (both phases) | Phase 1 & 2 | Proof of concept | Must use free/local tools |
+| C6 | Phase 1 must complete before Phase 2 begins | Phase 2 | Data dependency | Strict phase gate |
+
+---
+
+## 9. Dependencies
+
+### External Dependencies
+
+| Dependency | Type | Phase | Owner | Risk | Mitigation |
+|------------|------|-------|-------|------|------------|
+| Monday.com API access | Access | Phase 1 | IT Admin | Medium | Request early; document needs |
+| Monday.com API stability | External | Phase 1 | Monday.com | Low | Version pin; monitor changes |
+| Ollama Windows support | External | Phase 1 (opt) | Ollama team | Low | Mature; well-supported |
+| Neo4j Desktop availability | External | Phase 2 | Neo4j | Low | Stable product; alternatives exist |
+| SharePoint access | Access | Phase 2 | IT Admin | Medium | Azure AD app registration process |
+
+### Internal Dependencies
+
+| Dependency | Type | Phase | Owner | Status |
+|------------|------|-------|-------|--------|
+| Development machine (16GB+ RAM) | Hardware | Phase 1 | Developer | ✅ Available |
+| API token for Monday.com | Credential | Phase 1 | IT Admin | ⏳ Pending |
+| Phase 1 extraction data (SQLite + embeddings) | Data | Phase 2 | Phase 1 output | 📋 Planned |
+| Azure AD access | Credential | Phase 2 | IT Admin | 📋 Planned |
+| User testing participants | People | Phase 2 | Product Owner | 📋 Planned |
+
+### Technical Dependencies (Libraries)
+
+```
+# requirements.txt — Phase 1
+spacy>=3.7.0
+sentence-transformers>=2.0.0
+chromadb>=0.4.0
+requests>=2.31.0
+httpx>=0.25.0             # Async HTTP for Ollama
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+pyyaml>=6.0.0
+
+# Phase 2 additions
+neo4j>=5.0.0
+graphrag>=0.3.0
+langchain>=0.1.0
+langchain-community>=0.1.0
+streamlit>=1.30.0
+msal>=1.24.0              # Microsoft auth
+python-docx>=0.8.11
+PyPDF2>=3.0.0
+```
+
+---
+
+## 10. Risks & Mitigations
+
+### Risk Register
+
+| ID | Risk | Phase | Probability | Impact | Score | Mitigation | Owner |
+|----|------|-------|-------------|--------|-------|------------|-------|
+| R1 | Local LLM quality insufficient for extraction | Phase 1 | Medium | Medium | 🟠 | NLP-only fallback; LLM is optional in Phase 1 | Tech Lead |
+| R2 | Monday.com API rate limits | Phase 1 | Low | Medium | 🟢 | Caching; incremental sync; backoff | Developer |
+| R3 | Entity extraction accuracy <80% | Phase 1 | Medium | Medium | 🟠 | Combine NLP+LLM; human validation; iterate | Developer |
+| R4 | Hardware limitations | Phase 1 | Medium | Medium | 🟠 | Start with 8B model; quantized versions | Tech Lead |
+| R5 | Scope creep | Both | High | Medium | 🟠 | Strict phase boundaries; backlog discipline | Product Owner |
+| R6 | Data privacy concerns | Both | Low | High | 🟠 | Local-first; no cloud without review | Product Owner |
+| R7 | User adoption challenges | Phase 2 | Medium | High | 🟠 | Early user involvement; iterate UX | Product Owner |
+| R8 | Snowflake migration complexity | Phase 2 | Medium | Low | 🟢 | Schema documentation; abstraction layer | Tech Lead |
+| R9 | Key person dependency | Both | Medium | High | 🟠 | Documentation; knowledge sharing | Product Owner |
+| R10 | Monday.com schema changes | Phase 1 | Low | Medium | 🟢 | Monitor API changelog; flexible parsing | Developer |
+| R11 | Phase 1 output format inadequate for Phase 2 | Phase 2 | Low | Medium | 🟢 | Design Phase 1 schema with Phase 2 loading in mind | Tech Lead |
+| R12 | LLM query quality insufficient for NL interface | Phase 2 | Medium | High | 🟠 | Design swappable backend; budget cloud LLM evaluation | Tech Lead |
+
+### Risk Matrix
+
+```
+                    IMPACT
+                Low    Medium    High
+           ┌────────┬─────────┬─────────┐
+     High  │        │   R5    │         │
+           ├────────┼─────────┼─────────┤
+P Medium   │   R8   │ R1, R3, │ R7, R9, │
+R          │        │   R4    │  R12    │
+O          ├────────┼─────────┼─────────┤
+B    Low   │        │R2, R10, │   R6    │
+           │        │  R11    │         │
+           └────────┴─────────┴─────────┘
+```
+
+---
+
+## 11. Appendix
+
+### A. Project Structure
+
+```
+knowledge-graph/
+├── README.md
+├── requirements.txt
+├── pyproject.toml
+├── .env.example
+├── .gitignore
+│
+├── config/
+│   ├── settings.yaml          # Main configuration
+│   ├── llm_settings.yaml      # LLM configuration
+│   ├── logging.yaml           # Logging configuration
+│   ├── boards_config.yaml     # Board include/exclude rules
+│   └── prompts/
+│       ├── entity_extraction.txt
+│       └── relationship_extraction.txt
+│
+├── src/
+│   ├── __init__.py
+│   │
+│   ├── ingestion/                        # Phase 1
+│   │   ├── __init__.py
+│   │   ├── base_connector.py             # Abstract base class
+│   │   ├── monday_connector.py           # Monday.com GraphQL client
+│   │   └── sharepoint_connector.py       # Phase 2
+│   │
+│   ├── processing/                       # Phase 1
+│   │   ├── __init__.py
+│   │   ├── text_chunker.py               # Document chunking
+│   │   ├── nlp_pipeline.py               # spaCy NER/NLP
+│   │   ├── llm_extractor.py              # Ollama-based extraction (optional)
+│   │   ├── embedding_generator.py        # sentence-transformers
+│   │   └── concept_miner.py              # Co-occurrence & concept analysis
+│   │
+│   ├── storage/                          # Phase 1 (SQLite) + Phase 2 (Neo4j)
+│   │   ├── __init__.py
+│   │   ├── sqlite_store.py               # Phase 1 intermediate storage
+│   │   ├── neo4j_client.py               # Phase 2 graph operations
+│   │   ├── vector_store.py               # ChromaDB operations
+│   │   └── schema.py                     # Schema definitions
+│   │
+│   ├── export/                           # Phase 1
+│   │   ├── __init__.py
+│   │   ├── json_exporter.py              # JSON export for graph loading
+│   │   ├── csv_exporter.py               # CSV export for analysts
+│   │   └── reports.py                    # Entity & concept reports
+│   │
+│   ├── graph/                            # Phase 2
+│   │   ├── __init__.py
+│   │   ├── graph_loader.py               # Phase 1 data → Neo4j
+│   │   └── lazy_graphrag.py              # LazyGraphRAG wrapper
+│   │
+│   ├── query/                            # Phase 2
+│   │   ├── __init__.py
+│   │   ├── query_router.py               # Route to appropriate handler
+│   │   ├── text_to_cypher.py             # NL to Cypher conversion
+│   │   ├── hybrid_retriever.py           # Graph + vector retrieval
+│   │   └── response_generator.py         # LLM response synthesis
+│   │
+│   └── utils/
+│       ├── __init__.py
+│       ├── logger.py
+│       └── config.py
+│
+├── app/                                  # Phase 2
+│   ├── streamlit_app.py                  # Main UI
+│   ├── pages/
+│   │   ├── 1_query.py                    # Query interface
+│   │   ├── 2_explore.py                  # Graph exploration
+│   │   └── 3_admin.py                    # Admin panel
+│   └── components/
+│       ├── query_input.py
+│       └── results_display.py
+│
+├── cli/                                  # Phase 1
+│   ├── __init__.py
+│   ├── extract.py                        # CLI entry point for extraction
+│   ├── export.py                         # CLI entry point for exports
+│   └── validate.py                       # CLI entry point for quality checks
+│
+├── tests/
+│   ├── __init__.py
+│   ├── test_ingestion/
+│   ├── test_processing/
+│   ├── test_storage/
+│   ├── test_export/
+│   └── test_query/                       # Phase 2
+│
+├── scripts/
+│   ├── setup_phase1.sh                   # Phase 1 environment setup
+│   ├── setup_phase2.sh                   # Phase 2 additions (Neo4j, etc.)
+│   ├── initial_load.py                   # Full data load
+│   ├── refresh_data.py                   # Incremental refresh
+│   ├── load_graph.py                     # Phase 2: SQLite → Neo4j
+│   └── reset_database.py                 # Clear and rebuild
+│
+├── notebooks/                            # Exploration/debugging
+│   ├── 01_api_exploration.ipynb
+│   ├── 02_nlp_testing.ipynb
+│   ├── 03_extraction_review.ipynb
+│   └── 04_query_testing.ipynb            # Phase 2
+│
+├── data/                                 # Phase 1 output
+│   ├── extraction.db                     # SQLite database
+│   ├── exports/                          # JSON/CSV exports
+│   └── chromadb/                         # Vector embeddings
+│
+└── docs/
+    ├── architecture.md
+    ├── schema.md
+    ├── api_reference.md
+    └── user_guide.md                     # Phase 2
+```
+
+### B. Environment Setup Scripts
+
+#### Phase 1 Setup
+```bash
+#!/bin/bash
+# setup_phase1.sh - Phase 1 Development environment setup (Git Bash on Windows)
+
+echo "=== Phase 1: Extraction & NLP Setup ==="
+
+# 1. Create virtual environment
+echo "Creating Python virtual environment..."
+python -m venv kg-env
+source kg-env/Scripts/activate  # Windows Git Bash
+
+# 2. Install Phase 1 dependencies
+echo "Installing Phase 1 Python dependencies..."
+pip install --upgrade pip
+pip install spacy sentence-transformers chromadb requests httpx \
+            python-dotenv pydantic pyyaml
+
+# 3. Download spaCy model
+echo "Downloading spaCy language model..."
+python -m spacy download en_core_web_lg
+
+# 4. (Optional) Verify Ollama installation
+echo "Checking Ollama (optional for Phase 1)..."
+if command -v ollama &> /dev/null; then
+    echo "Ollama found. Pulling Llama model..."
+    ollama pull llama3.2:8b
+else
+    echo "INFO: Ollama not found. Phase 1 NLP pipeline will work without it."
+    echo "Install from https://ollama.ai if you want LLM-enhanced extraction."
+fi
+
+# 5. Create .env from template
+if [ ! -f .env ]; then
+    echo "Creating .env file from template..."
+    cp .env.example .env
+    echo "Please edit .env with your Monday.com API token"
+fi
+
+echo "=== Phase 1 Setup Complete ==="
+echo "Activate environment: source kg-env/Scripts/activate"
+echo "Run extraction: python cli/extract.py --full"
+```
+
+#### Phase 2 Setup (Additions)
+```bash
+#!/bin/bash
+# setup_phase2.sh - Phase 2 additions (run AFTER setup_phase1.sh)
+
+echo "=== Phase 2: Knowledge Graph Setup ==="
+
+source kg-env/Scripts/activate
+
+# 1. Install Phase 2 dependencies
+echo "Installing Phase 2 Python dependencies..."
+pip install neo4j graphrag langchain langchain-community streamlit \
+            msal python-docx PyPDF2
+
+# 2. Verify Ollama (required for Phase 2)
+echo "Checking Ollama (required for Phase 2)..."
+if command -v ollama &> /dev/null; then
+    echo "Ollama found. Ensuring Llama model is available..."
+    ollama pull llama3.2:8b
+else
+    echo "WARNING: Ollama not found. Please install from https://ollama.ai"
+    echo "Ollama is required for Phase 2 query processing."
+fi
+
+# 3. Verify Neo4j
+echo "Please ensure Neo4j Desktop is installed and running"
+echo "Create a database named 'knowledgegraph' with password from .env"
+
+echo "=== Phase 2 Setup Complete ==="
+echo "Load graph: python scripts/load_graph.py"
+echo "Run app: streamlit run app/streamlit_app.py"
+```
+
+### C. Sample Queries
+
+#### Phase 1: CLI Extraction Commands
+```bash
+# Full extraction from Monday.com
+python cli/extract.py --full
+
+# Incremental extraction (since last run)
+python cli/extract.py --incremental
+
+# Extract specific boards only
+python cli/extract.py --boards "Board A" "Board B"
+
+# Export to CSV
+python cli/export.py --format csv --output data/exports/
+
+# Export to JSON (for Phase 2 graph loading)
+python cli/export.py --format json --output data/exports/
+
+# Generate entity report
+python cli/export.py --report entities
+
+# Generate co-occurrence report
+python cli/export.py --report cooccurrence --min-weight 3
+
+# Validate extraction quality
+python cli/validate.py --sample-size 100
+```
+
+#### Phase 2: Natural Language Queries (User-Facing Examples)
+```markdown
+## Example Queries
+
+**Finding Work**
+- "What items are related to federal reporting?"
+- "Show me all tasks assigned to Sarah"
+- "What boards mention CFSR?"
+
+**Understanding Connections**
+- "What concepts come up together with timeliness?"
+- "Who has worked on projects related to case reviews?"
+- "What items are connected to the Q3 planning board?"
+
+**Status & Progress**
+- "What items are overdue?"
+- "Show me stuck items across all boards"
+- "What was completed last month?"
+
+**Cross-Source (SharePoint + Monday.com)**
+- "What documents relate to this task?"
+- "Find all work and documents about permanency"
+- "Who authored documents connected to CFSR items?"
+```
+
+### D. Definition of Done (DoD)
+
+#### Phase 1 DoD
+- [ ] Code complete and passing tests
+- [ ] All Monday.com boards extracting successfully
+- [ ] NER precision >80% on validation sample
+- [ ] 500+ concepts extracted
+- [ ] JSON and CSV exports functional
+- [ ] CLI tools documented
+- [ ] Extraction pipeline runs without manual intervention
+
+#### Phase 2 DoD
+- [ ] Code complete and passing tests
+- [ ] Code reviewed by peer
+- [ ] Knowledge graph populated and queryable
+- [ ] NL query interface returning sourced answers
+- [ ] SharePoint documents indexed
+- [ ] >80% query success rate on test questions
+- [ ] Admin panel functional
+- [ ] User guide documentation complete
+- [ ] Demo-able to stakeholders
+
+### E. Glossary
+
+| Term | Definition |
+|------|------------|
+| **Acceptance Criteria** | Conditions that must be met for a user story to be considered complete |
+| **Co-occurrence** | Two concepts appearing together in the same context (item, update); frequency indicates strength |
+| **Cypher** | Neo4j's declarative graph query language |
+| **Embedding** | Vector representation of text enabling semantic similarity comparison |
+| **Entity** | A distinct object (person, place, concept) identified in text |
+| **Epic** | A large user story that can be broken into smaller stories |
+| **Extraction** | The process of pulling structured data from Monday.com via API |
+| **GraphRAG** | Graph-based Retrieval Augmented Generation |
+| **Knowledge Graph** | A graph database representing entities and their relationships |
+| **LazyGraphRAG** | Cost-efficient GraphRAG variant deferring LLM use to query time |
+| **NER** | Named Entity Recognition — identifying entities in text |
+| **NLP** | Natural Language Processing — computational analysis of human language |
+| **RAG** | Retrieval Augmented Generation — grounding LLM responses in retrieved data |
+| **Sprint** | Time-boxed development iteration (typically 2 weeks) |
+| **Text Mining** | Extracting meaningful information and patterns from unstructured text |
+| **User Story** | A feature described from the user's perspective |
+| **Vector Database** | Database optimized for storing and querying vector embeddings |
+
+### F. References
+
+- [Monday.com API Documentation](https://developer.monday.com/api-reference/)
+- [Microsoft GraphRAG](https://microsoft.github.io/graphrag/)
+- [LazyGraphRAG Announcement](https://www.microsoft.com/en-us/research/blog/lazygraphrag-setting-a-new-standard-for-quality-and-cost/)
+- [Neo4j Python Driver](https://neo4j.com/docs/python-manual/current/)
+- [LangChain Neo4j Integration](https://python.langchain.com/docs/integrations/graphs/neo4j_cypher)
+- [spaCy Documentation](https://spacy.io/usage)
+- [Ollama](https://ollama.ai/)
+- [Streamlit Documentation](https://docs.streamlit.io/)
+
+---
+
+## Document History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 0.1 | Jan 2025 | [Author] | Initial draft |
+| 1.0 | Jan 2025 | [Author] | Converted to Agile PRD format |
+| 2.0 | Jan 2025 | [Author] | Split into Phase 1 (Extraction & NLP) and Phase 2 (Knowledge Graph) |
+
+---
+
+*End of Document*
