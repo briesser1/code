@@ -1,1 +1,141 @@
 
+# Text Mining & NLP Processes Reference
+
+A comprehensive reference of widely deployed text mining and NLP processes, organized from foundational techniques through modern LLM-based approaches. Each entry includes the technique name, the most commonly used library, a concrete use case, and a brief description.
+
+---
+
+## 1. Foundational Text Preprocessing
+
+| Technique | Library | Use Case | Description |
+|---|---|---|---|
+| **Tokenization** | NLTK (`word_tokenize`), spaCy (`nlp()`) | Split customer reviews into individual words for sentiment analysis. | Splits text into smaller units (words, sentences, or subwords) as the foundational first step in any text processing pipeline. |
+| **Stopword Removal** | NLTK (`stopwords`), spaCy (`token.is_stop`) | Remove "the", "is", "and" from search queries to improve search relevance. | Eliminates high-frequency words that carry little meaningful information, reducing noise and dimensionality in downstream tasks. |
+| **Stemming** | NLTK (`PorterStemmer`, `SnowballStemmer`) | Reduce "running", "runs", "ran" to the stem "run" for document indexing. | Chops words to their root form using rule-based suffix stripping. Faster than lemmatization but less accurate --- may produce non-dictionary stems like "studi" from "studies". |
+| **Lemmatization** | spaCy (`token.lemma_`), NLTK (`WordNetLemmatizer`) | Convert "better" to "good" and "running" to "run" for normalized search. | Transforms words to their dictionary base form using vocabulary lookup and morphological analysis. Considers part of speech, so "better" (adjective) correctly maps to "good". |
+| **POS Tagging** | spaCy (`token.pos_`), NLTK (`pos_tag`) | Identify verbs in customer feedback to extract actionable complaints. | Assigns grammatical categories (noun, verb, adjective, etc.) to each word in a sentence using statistical or neural models trained on annotated corpora. |
+| **Regex Text Cleaning** | Python `re`, R `stringr` | Extract email addresses and phone numbers from unstructured support tickets. | Pattern-based text matching and manipulation for cleaning, extracting, or transforming text. Used to remove HTML tags, URLs, special characters, or extract structured data from free text. |
+
+---
+
+## 2. Feature Extraction & Text Representation
+
+| Technique | Library | Use Case | Description |
+|---|---|---|---|
+| **Bag of Words (BoW)** | scikit-learn (`CountVectorizer`) | Convert product descriptions into numerical vectors for category classification. | Represents documents as vectors of word counts, ignoring grammar and word order. Each unique word becomes a feature, creating a sparse matrix suitable for classical ML models. |
+| **TF-IDF** | scikit-learn (`TfidfVectorizer`), R `tidytext` (`bind_tf_idf`) | Identify the most distinctive keywords in each paper within a research corpus. | Weights word importance by term frequency in a document multiplied by inverse document frequency across the corpus. Down-weights common words and highlights terms that are distinctive to specific documents. |
+| **N-grams** | NLTK (`ngrams`), scikit-learn (`CountVectorizer(ngram_range=)`) | Capture phrases like "not good" and "customer service" that single words miss in reviews. | Generates contiguous sequences of n words from text (bigrams for n=2, trigrams for n=3). Captures local word context and multi-word expressions that unigram models cannot represent. |
+| **Word2Vec** | Gensim (`Word2Vec`) | Find words semantically similar to "laptop" (e.g., "computer", "notebook") for search query expansion. | Learns dense vector representations of words by predicting context words (Skip-gram) or target words from context (CBOW). Captures semantic relationships, enabling vector arithmetic like "king - man + woman = queen". |
+| **GloVe** | Stanford NLP pre-trained vectors, Gensim API | Generate word embeddings that capture both local and global word co-occurrence patterns. | Creates word embeddings by factorizing a global word-word co-occurrence matrix. Unlike Word2Vec's sliding-window approach, GloVe leverages corpus-wide co-occurrence statistics for richer representations. |
+| **FastText** | Gensim (`FastText`), Facebook `fasttext` | Generate embeddings for misspelled words or rare medical terms using subword information. | Extends Word2Vec by representing words as bags of character n-grams, enabling embeddings for out-of-vocabulary words. Handles typos, morphological variants, and rare words not seen during training. |
+| **Doc2Vec** | Gensim (`doc2vec`) | Generate fixed-length vectors for entire customer reviews to find similar complaint patterns. | Extends Word2Vec to learn fixed-length vector representations for variable-length documents. Trains a paragraph ID as additional context to capture document-level semantics beyond individual words. |
+
+---
+
+## 3. Core NLP Tasks
+
+| Technique | Library | Use Case | Description |
+|---|---|---|---|
+| **Named Entity Recognition (NER)** | spaCy (`ner`), Hugging Face (`dslim/bert-base-NER`) | Extract company names, locations, and dates from news articles for a knowledge graph. | Identifies and classifies named entities (persons, organizations, locations, dates, monetary values) in text. Modern approaches use transformer models fine-tuned on annotated datasets like CoNLL-2003. |
+| **Dependency Parsing** | spaCy (`token.dep_`, `token.head`), Stanza | Identify subject-verb-object relationships in user queries to improve question answering. | Analyzes grammatical structure by linking words with syntactic dependency relations (subject, object, modifier). Produces a tree where each word points to its syntactic head. |
+| **Constituency Parsing** | Berkeley Neural Parser (benepar), Stanza | Break down legal contract sentences into hierarchical phrase structures for clause extraction. | Decomposes sentences into nested constituent phrases (noun phrases, verb phrases, prepositional phrases) following a context-free grammar. Produces bracket-notation parse trees. |
+| **Coreference Resolution** | Hugging Face (AllenNLP), spaCy + neuralcoref | Link pronouns "he" and "his" back to "Dr. Smith" mentioned earlier in a clinical note. | Identifies which mentions in text refer to the same real-world entity, linking pronouns and noun phrases to their antecedents. Critical for document-level understanding. |
+| **Sentence Segmentation** | spaCy (`doc.sents`), NLTK (`sent_tokenize`) | Split lengthy legal documents into individual sentences for clause-by-clause analysis. | Detects sentence boundaries, handling abbreviations ("Dr."), decimals ("3.14"), and ellipses. Modern tools use rule-based and statistical methods for robust boundary detection. |
+
+---
+
+## 4. Text Classification & Sentiment Analysis
+
+| Technique | Library | Use Case | Description |
+|---|---|---|---|
+| **Naive Bayes Classification** | scikit-learn (`MultinomialNB`) | Classify emails as spam or not spam based on word frequencies. | Applies Bayes' theorem with the naive assumption of feature independence. Multinomial NB works on word counts; Bernoulli NB on binary word presence. Fast to train, surprisingly effective for text. |
+| **SVM Text Classification** | scikit-learn (`LinearSVC`) | Categorize news articles into topics (politics, sports, technology) using TF-IDF features. | Finds the optimal hyperplane separating classes in high-dimensional feature space. Linear SVMs are particularly effective for text where the feature space (vocabulary) is large and sparse. |
+| **Lexicon-Based Sentiment (VADER)** | NLTK VADER (`vaderSentiment`), TextBlob | Detect customer sentiment (positive/negative/neutral) in product reviews and social media posts. | Scores text sentiment using pre-built lexicons of words with polarity values. VADER is tuned for social media --- it handles capitalization ("GREAT"), emoticons, and negation ("not bad") without any training data. |
+| **Logistic Regression for Text** | scikit-learn (`LogisticRegression`) | Predict whether a support ticket requires urgent escalation based on its text content. | Binary or multiclass classification using the logistic function applied to TF-IDF or embedding features. Simple, interpretable, and a strong baseline that often competes with more complex models. |
+
+---
+
+## 5. Topic Modeling
+
+| Technique | Library | Use Case | Description |
+|---|---|---|---|
+| **Latent Dirichlet Allocation (LDA)** | Gensim (`LdaModel`), scikit-learn (`LatentDirichletAllocation`) | Discover hidden themes in thousands of customer feedback emails to identify common complaint categories. | Probabilistic generative model that represents each document as a mixture of topics and each topic as a distribution over words. Uses Dirichlet priors and iterative inference (variational or Gibbs sampling) to learn topic structure. |
+| **Latent Semantic Analysis (LSA/LSI)** | scikit-learn (`TruncatedSVD`), Gensim (`LsiModel`) | Improve search results so queries for "car" also return documents about "automobile". | Applies singular value decomposition (SVD) to the document-term matrix to reduce dimensionality and uncover latent semantic structure. Captures synonymy and polysemy but lacks a probabilistic interpretation. |
+| **Non-Negative Matrix Factorization (NMF)** | scikit-learn (`NMF`) | Extract distinct research themes from a collection of scientific abstracts. | Factorizes the document-term matrix into two non-negative matrices: documents-to-topics and topics-to-words. The non-negativity constraint produces more interpretable, additive topic components than SVD. |
+
+---
+
+## 6. Information Extraction
+
+| Technique | Library | Use Case | Description |
+|---|---|---|---|
+| **RAKE (Keyword Extraction)** | `rake-nltk` | Automatically tag academic papers with key phrases for indexing and discovery. | Rapid Automatic Keyword Extraction uses stop words as phrase delimiters, then scores candidate multi-word keywords by word degree-to-frequency ratio. Unsupervised, fast, no training data needed. |
+| **YAKE (Keyword Extraction)** | `yake` | Extract important keywords from news articles across multiple languages without training data. | Unsupervised keyword extractor using statistical features (word position, casing, frequency, context dispersion). Works across languages and domains without requiring a corpus or training step. |
+| **TextRank (Keyword Extraction)** | `pytextrank`, `summa` | Identify the most important terms in blog posts for SEO optimization. | Graph-based ranking algorithm inspired by PageRank. Builds a word co-occurrence graph and iteratively computes importance scores. Words that co-occur with many other important words rank highest. |
+| **Relation Extraction** | spaCy (custom), Stanford OpenIE, Hugging Face | Extract "company-acquires-company" relationships from financial news articles. | Identifies semantic relationships between entities in text (e.g., "works for", "located in", "treats"). Modern approaches use neural models fine-tuned on relation-annotated datasets or prompt-based extraction with LLMs. |
+| **Extractive Summarization** | sumy, Gensim (`summarize`), NLTK | Generate summaries of lengthy research papers by selecting the most important sentences. | Creates summaries by scoring and selecting the most important sentences from the original text without modification. Scoring methods include TF-IDF weighting, TextRank graph centrality, and sentence position heuristics. |
+
+---
+
+## 7. Sequence Models
+
+| Technique | Library | Use Case | Description |
+|---|---|---|---|
+| **Hidden Markov Models (HMM)** | NLTK (`nltk.tag.hmm`), hmmlearn | Predict part-of-speech tags for words in a sentence based on transition probabilities. | Generative probabilistic model for sequence labeling that learns joint distributions of observations and hidden states using the Markov assumption (current state depends only on the previous state). Historically the standard for POS tagging and NER. |
+| **Conditional Random Fields (CRF)** | python-crfsuite, sklearn-crfsuite | Extract medication names and dosages from clinical notes with high precision. | Discriminative model for sequence labeling that directly models conditional probability of label sequences given input. Supports flexible, overlapping features and captures label dependencies, outperforming HMMs on most NLP sequence tasks. |
+| **RNN / LSTM / GRU** | PyTorch (`torch.nn.LSTM`), TensorFlow/Keras | Translate sentences word-by-word while maintaining context from earlier in the sentence. | Neural architectures for sequential data where hidden states propagate information across time steps. LSTMs and GRUs add gating mechanisms to solve the vanishing gradient problem, enabling learning of long-range dependencies. |
+
+---
+
+## 8. Clustering & Similarity
+
+| Technique | Library | Use Case | Description |
+|---|---|---|---|
+| **Document Clustering** | scikit-learn (`KMeans`, `AgglomerativeClustering`), R `cluster` (`diana`) | Group similar customer support tickets to discover common issue categories without predefined labels. | Unsupervised grouping of documents into clusters based on vector similarity (TF-IDF or embeddings). K-means partitions into flat clusters; hierarchical methods (agglomerative/DIANA) build a tree of nested groups. |
+| **Cosine Similarity** | scikit-learn (`cosine_similarity`) | Find the most similar product descriptions to a given item for a recommendation engine. | Measures similarity between two vectors by the cosine of the angle between them, ranging from -1 to 1. Normalized by magnitude, making it ideal for comparing documents of different lengths. |
+| **Jaccard Similarity** | Python sets, `textdistance` | Detect near-duplicate web pages by comparing their word sets. | Measures set overlap as intersection divided by union, producing values from 0 (no overlap) to 1 (identical). Simple and effective for comparing binary word-presence features but ignores word frequency. |
+| **Edit Distance (Levenshtein)** | `python-Levenshtein`, `editdistance` | Suggest corrections for misspelled search queries by finding the closest dictionary matches. | Counts the minimum single-character edits (insertions, deletions, substitutions) to transform one string into another. The foundation of spell checkers and fuzzy string matching systems. |
+
+---
+
+## 9. Modern Deep Learning NLP
+
+| Technique | Library | Use Case | Description |
+|---|---|---|---|
+| **Attention Mechanism** | PyTorch (`MultiheadAttention`), built into all Transformers | Enable a translation model to focus on relevant source words when generating each target word. | Allows models to dynamically weight different parts of the input when producing each output element, replacing the fixed-context bottleneck of encoder-decoder RNNs. The foundational idea behind Transformers. |
+| **Transformer Architecture** | Hugging Face Transformers (`AutoModel`), PyTorch | Build state-of-the-art question answering systems that understand complex document context. | Self-attention-based architecture that processes all input positions in parallel (no recurrence). Introduced in "Attention Is All You Need" (2017), it is the basis for BERT, GPT, T5, and virtually all modern NLP models. |
+| **BERT (+ RoBERTa, DistilBERT)** | Hugging Face (`bert-base-uncased`, `roberta-base`, `distilbert`) | Fine-tune on clinical text to classify patient notes by diagnosis category. | Bidirectional transformer pre-trained with masked language modeling (predicting hidden words) and next-sentence prediction. RoBERTa optimizes training; DistilBERT compresses to 40% smaller while keeping 97% performance. |
+| **Sentence-BERT / Sentence Embeddings** | sentence-transformers (`SentenceTransformer`) | Find semantically similar questions in a FAQ database to auto-suggest answers. | Modifies BERT with siamese/triplet networks to produce fixed-size sentence embeddings optimized for cosine similarity. Enables efficient semantic search and clustering at scale --- the approach used in our DIANA clustering pipeline. |
+| **GPT Family (GPT-2/3/4)** | Hugging Face (`gpt2`), OpenAI API | Generate product descriptions from bullet-point feature lists for e-commerce. | Autoregressive (left-to-right) transformer pre-trained on next-token prediction. Excels at text generation, few-shot learning, and instruction following. Scale unlocks emergent capabilities (reasoning, code generation). |
+| **Text-to-Text (T5, FLAN-T5)** | Hugging Face (`t5-base`, `google/flan-t5-base`) | Generate abstractive summaries of lengthy research papers. | Frames every NLP task as text-to-text: input is a text string with a task prefix, output is a text string. FLAN-T5 adds instruction tuning for improved zero-shot generalization across tasks. |
+| **Retrieval-Augmented Generation (RAG)** | LangChain, LlamaIndex | Build a chatbot that answers questions grounded in your company's internal documents. | Combines retrieval (find relevant documents from a knowledge base) with generation (condition an LLM on retrieved context). Enables LLMs to access current, domain-specific information not in their training data. |
+| **Fine-Tuning Pretrained Models** | Hugging Face `Trainer` API, PyTorch | Adapt a general BERT model to classify domain-specific legal contract clauses. | Updates pre-trained model weights on a task-specific labeled dataset. Transfer learning achieves strong performance with far less data and compute than training from scratch. |
+| **Zero-Shot / Few-Shot Classification** | Hugging Face (`zero-shot-classification`), SetFit | Classify customer inquiries into new categories without collecting labeled training data. | Zero-shot reformulates classification as natural language inference ("Is this text about billing?"). Few-shot learns from a handful of examples per class. Both eliminate the traditional need for large labeled datasets. |
+| **Prompt Engineering** | OpenAI API, Anthropic Claude API, any LLM interface | Craft instructions that guide an LLM to consistently extract structured fields from unstructured emails. | The practice of designing effective input instructions, examples, and formatting to steer LLM behavior. Techniques include chain-of-thought prompting, few-shot examples, system instructions, and output format specification. |
+
+---
+
+## 10. Applied NLP Tasks
+
+| Technique | Library | Use Case | Description |
+|---|---|---|---|
+| **Machine Translation** | Hugging Face MarianMT (`Helsinki-NLP/opus-mt-*`), OpenNMT | Translate customer support tickets from Spanish to English for a centralized team. | Converts text from one language to another using encoder-decoder transformer models trained on parallel corpora. MarianMT provides pre-trained models for hundreds of language pairs. |
+| **Question Answering** | Hugging Face (`question-answering` pipeline) | Build a system that answers employee questions by reading company policy documents. | Extractive QA selects answer spans directly from a context passage; generative QA produces free-form answers. Models are typically fine-tuned on datasets like SQuAD. |
+| **Text Generation** | Hugging Face (GPT-2), OpenAI API | Automatically draft personalized email responses to common customer inquiries. | Produces coherent text continuations using autoregressive language models that predict the next token given preceding tokens. Applications include creative writing, code completion, and dialogue systems. |
+| **Spell Checking / Correction** | SymSpell (`symspellpy`), pyspellchecker | Correct misspelled search queries to improve result relevance. | Detects and corrects spelling errors using edit-distance lookups against a dictionary. SymSpell precomputes delete combinations for 1M+ words/second throughput. |
+| **Language Detection** | `langdetect`, `lingua-language-detector`, FastText | Automatically route incoming messages to language-specific support queues. | Identifies the language of input text using character n-gram frequency profiles. Modern detectors support 50+ languages and work reliably on text as short as a single sentence. |
+| **Readability Scoring** | `textstat`, R `quanteda.textstats` | Verify that patient education materials are written at an appropriate reading level. | Computes metrics like Flesch Reading Ease, Flesch-Kincaid Grade Level, and SMOG index based on sentence length, syllable counts, and word complexity. |
+| **Text Deduplication** | datasketch (MinHash + LSH), scikit-learn | Remove duplicate or near-duplicate articles from a web-scraped training dataset. | Identifies exact and near-duplicate documents using hashing and shingling techniques. MinHash with Locality-Sensitive Hashing (LSH) enables efficient approximate deduplication at corpus scale. |
+
+---
+
+## Key R Libraries
+
+| Library | Typical Use | Description |
+|---|---|---|
+| **tidytext** | Tidy text mining with dplyr/ggplot2 integration | One-token-per-row data frames that work seamlessly with tidyverse tools. Includes sentiment lexicons and tf-idf functions. |
+| **quanteda** | Large-scale quantitative text analysis | Fast, flexible framework for corpus management, document-feature matrices, and text statistics. Designed for performance at scale. |
+| **tm** | Traditional text mining infrastructure | Foundational R package for document collections, preprocessing, and term-document matrices. Simpler API than quanteda. |
+| **text** | Transformer embeddings in R | Generates contextualized word and sentence embeddings using HuggingFace models directly from R via Python backend. |
+| **text2vec** | Efficient vectorization and embeddings | Memory-efficient TF-IDF, GloVe embeddings, and topic modeling in R using iterators and parallelization. |
+| **spacyr** | spaCy NLP from R | R wrapper for spaCy providing access to tokenization, POS tagging, dependency parsing, and NER from R workflows. |
