@@ -1,521 +1,203 @@
-# ==============================================================================
-# Parse CFSR Item 3 Extraction JSON
-# Development & Testing Script
-#
-# Purpose: Parse the two-layer JSON output from the CFSR Item 3 prompt
-#          (theme extraction + semantic relationship map) into tidy dataframes
-#
-# Input:   JSON string or file from LLM response
-# Output:  Five tidy dataframes ready for analysis
-# ==============================================================================
+You are an expert analyst reviewing Child and Family Services Review (CFSR) case
+narratives for quality improvement and systems analysis. You are analyzing Item 5:
+"Did the agency establish appropriate permanency goals for the child in a timely
+manner?"
 
-library(jsonlite)
-library(tidyverse)
+Purpose of Assessment: To determine whether appropriate permanency goals were
+established for the child in a timely manner.
 
-# ------------------------------------------------------------------------------
-# SAMPLE JSON FOR TESTING
-# Replace this with actual LLM output when testing against real narratives
-# ------------------------------------------------------------------------------
+You will perform TWO extraction tasks:
+1. Extract structured themes from the narrative
+2. Map semantic relationships and directional causality between entities in the narrative
 
-sample_json <- '{
+---
+
+## TASK 1: THEME EXTRACTION
+
+Read the case narrative and identify each distinct issue or observation. For each, extract:
+
+**theme** — Classify into one of these categories:
+- "goal_appropriateness" — whether the selected permanency goal fits the child's circumstances, needs, and best interests
+- "goal_timeliness" — whether the permanency goal was established within required timeframes (typically 12 months from entry)
+- "goal_documentation" — quality and completeness of documentation supporting the permanency goal decision
+- "reunification_efforts" — reasonable efforts to reunify when reunification is the goal
+- "tpr_timeliness" — timeliness of filing for termination of parental rights when required (15 of 22 months rule)
+- "concurrent_planning" — simultaneous pursuit of alternative permanency options
+- "relative_search" — diligent search for and assessment of relatives/kin as permanency resources
+- "adoption_efforts" — efforts to achieve adoption when it is the goal
+- "guardianship_efforts" — efforts to establish legal guardianship when it is the goal
+- "appla_appropriateness" — appropriateness of Another Planned Permanent Living Arrangement goal for older youth
+- "child_input" — consideration of child's wishes and input in goal determination
+- "parent_engagement" — parental involvement and progress toward case plan goals
+- "barrier_identification" — identification of barriers to achieving permanency
+- "court_coordination" — coordination with courts on permanency hearings and decisions
+- "case_planning" — quality of case planning related to permanency
+- "sibling_considerations" — consideration of sibling relationships in permanency planning
+- "placement_stability" — connection between placement stability and permanency outcomes
+- "icwa_compliance" — compliance with Indian Child Welfare Act requirements when applicable
+- "interstate_issues" — interstate compact (ICPC) issues affecting permanency
+- "documentation" — general documentation quality related to permanency planning
+- "communication" — information sharing between workers, providers, courts, or families
+- "other" — if none above fit, provide a brief descriptor in parentheses
+
+**finding** — "strength", "concern", or "neutral"
+
+**excerpt** — A brief paraphrase (under 50 words) capturing the specific observation.
+Do not copy narrative text verbatim; summarize the observation in your own words.
+
+**actor** — The primary subject:
+"agency", "caseworker", "supervisor", "caregiver", "foster_parent",
+"provider", "court", "child", "birth_parent", "relative", "gal_casa", or "other"
+
+**timeframe** — When the observation applies:
+"initial" (first 30 days), "ongoing", "at_removal", "at_placement",
+"at_12_months", "at_permanency_hearing", "current", or "unspecified"
+
+---
+
+## TASK 2: SEMANTIC RELATIONSHIP EXTRACTION
+
+Identify meaningful relationships between entities, conditions, actions, and outcomes
+described in the narrative. These are the real-world connections between things —
+how one situation leads to another, how an action addresses a problem, or how
+conditions co-occur.
+
+**Semantic objects** are the concrete nouns, conditions, events, actions, or states
+mentioned in the narrative. Extract them as short, specific noun phrases.
+Good: "delayed TPR filing", "parent's failure to complete services", "child's attachment to foster family"
+Bad: "problems", "issues", "concerns" (too vague)
+
+For each relationship, extract:
+
+**source_object** — The semantic object that initiates, causes, or precedes
+(a short noun phrase, 2-8 words)
+
+**relationship_type** — One of:
+- "causes" — A directly produces B
+- "contributes_to" — A is a factor in B but not sole cause
+- "leads_to" — A results in B over time or through a chain
+- "exacerbates" — A makes existing B worse
+- "mitigates" — A reduces the severity or likelihood of B
+- "prevents" — A blocks B from occurring
+- "triggers" — A initiates or activates B
+- "co_occurs_with" — A and B appear together; causation unclear
+- "undermines" — A weakens or counteracts B
+- "addresses" — A is a response or intervention targeting B
+- "reveals" — A exposes or makes B visible
+- "enables" — A creates conditions for B to happen
+- "delays" — A postpones or slows B
+- "supports" — A strengthens or facilitates B
+
+**target_object** — The semantic object that is affected, produced, or follows
+(a short noun phrase, 2-8 words)
+
+**related_themes** — List of 1-2 theme categories (from Task 1) this relationship
+connects to
+
+**confidence** — "high", "medium", or "low" based on how explicitly the narrative
+states this connection vs. how much you are inferring
+
+**directionality** — "explicit" if the narrative directly states the connection,
+"inferred" if you are reasoning about the connection based on context
+
+---
+
+## OUTPUT FORMAT
+
+Return ONLY valid JSON with no additional text, markdown formatting, or code fences.
+The response must contain exactly two top-level keys: "theme_extraction" and "relationship_map".
+
+{
   "theme_extraction": {
-    "case_summary": "The agency completed an initial safety assessment promptly but failed to reassess ongoing safety risks after reunification. Substance abuse by the father went unmonitored, contributing to housing instability and inadequate child supervision.",
-    "item_rating": "area_needing_improvement",
+    "case_summary": "<1-2 sentence summary of the permanency goal situation>",
+    "item_rating": "<strength|area_needing_improvement|not_applicable>",
+    "permanency_goal": "<reunification|adoption|guardianship|appla|not_established>",
     "themes": [
       {
         "theme_id": "T1",
-        "theme": "initial_safety_assessment",
-        "finding": "strength",
-        "excerpt": "Caseworker completed the initial safety assessment within 24 hours of the report, identifying immediate hazards in the home.",
-        "actor": "caseworker",
-        "timeframe": "initial"
-      },
-      {
-        "theme_id": "T2",
-        "theme": "ongoing_safety_assessment",
-        "finding": "concern",
-        "excerpt": "No formal safety reassessment was conducted after the children were reunified with the father, despite known substance abuse history.",
-        "actor": "agency",
-        "timeframe": "ongoing"
-      },
-      {
-        "theme_id": "T3",
-        "theme": "substance_abuse",
-        "finding": "concern",
-        "excerpt": "Father continued methamphetamine use post-reunification with no drug testing or treatment referral documented in the case file.",
-        "actor": "caregiver",
-        "timeframe": "ongoing"
-      },
-      {
-        "theme_id": "T4",
-        "theme": "supervision",
-        "finding": "concern",
-        "excerpt": "Children were found unsupervised on two occasions following the family eviction when mother began working double shifts.",
-        "actor": "caregiver",
-        "timeframe": "current"
-      },
-      {
-        "theme_id": "T5",
-        "theme": "safety_monitoring",
-        "finding": "concern",
-        "excerpt": "Home visits were reduced to monthly after reunification despite the open safety concerns, and two scheduled visits were missed.",
-        "actor": "caseworker",
-        "timeframe": "ongoing"
-      },
-      {
-        "theme_id": "T6",
-        "theme": "documentation",
-        "finding": "neutral",
-        "excerpt": "Case notes were generally up to date but lacked specificity about safety plan compliance checks during home visits.",
-        "actor": "caseworker",
-        "timeframe": "ongoing"
-      },
-      {
-        "theme_id": "T7",
-        "theme": "service_provision",
-        "finding": "concern",
-        "excerpt": "No referral for substance abuse treatment was made despite the identified ongoing drug use by the father.",
-        "actor": "agency",
-        "timeframe": "ongoing"
+        "theme": "<category>",
+        "finding": "<strength|concern|neutral>",
+        "excerpt": "<paraphrased observation under 50 words>",
+        "actor": "<who>",
+        "timeframe": "<when>"
       }
     ],
-    "primary_concerns": [
-      "Lack of ongoing safety reassessment after reunification",
-      "Unaddressed substance abuse by father",
-      "Children left unsupervised due to economic instability",
-      "Insufficient home visit frequency given risk level"
-    ],
-    "primary_strengths": [
-      "Timely initial safety assessment within 24 hours"
-    ]
+    "primary_concerns": ["<list main permanency planning issues>"],
+    "primary_strengths": ["<list main strengths>"]
   },
   "relationship_map": {
     "semantic_objects": [
       {
         "object_id": "S1",
-        "label": "fathers methamphetamine use",
-        "object_type": "condition",
-        "sentiment": "negative"
-      },
-      {
-        "object_id": "S2",
-        "label": "fathers job loss",
-        "object_type": "event",
-        "sentiment": "negative"
-      },
-      {
-        "object_id": "S3",
-        "label": "family eviction",
-        "object_type": "event",
-        "sentiment": "negative"
-      },
-      {
-        "object_id": "S4",
-        "label": "mothers double work shifts",
-        "object_type": "state",
-        "sentiment": "neutral"
-      },
-      {
-        "object_id": "S5",
-        "label": "children found unsupervised",
-        "object_type": "event",
-        "sentiment": "negative"
-      },
-      {
-        "object_id": "S6",
-        "label": "lack of substance abuse reassessment",
-        "object_type": "action",
-        "sentiment": "negative"
-      },
-      {
-        "object_id": "S7",
-        "label": "timely initial safety assessment",
-        "object_type": "action",
-        "sentiment": "positive"
-      },
-      {
-        "object_id": "S8",
-        "label": "reduced home visit frequency",
-        "object_type": "action",
-        "sentiment": "negative"
-      },
-      {
-        "object_id": "S9",
-        "label": "missing substance abuse treatment referral",
-        "object_type": "action",
-        "sentiment": "negative"
-      },
-      {
-        "object_id": "S10",
-        "label": "initial safety concerns identified",
-        "object_type": "event",
-        "sentiment": "positive"
+        "label": "<short noun phrase>",
+        "object_type": "<condition|action|event|state|person|service|barrier|goal|timeline>",
+        "sentiment": "<negative|positive|neutral>"
       }
     ],
     "relationships": [
       {
         "source_object_id": "S1",
-        "source_label": "fathers methamphetamine use",
-        "relationship_type": "leads_to",
+        "source_label": "<noun phrase>",
+        "relationship_type": "<type>",
         "target_object_id": "S2",
-        "target_label": "fathers job loss",
-        "related_themes": ["T3"],
-        "confidence": "high",
-        "directionality": "explicit"
-      },
-      {
-        "source_object_id": "S2",
-        "source_label": "fathers job loss",
-        "relationship_type": "leads_to",
-        "target_object_id": "S3",
-        "target_label": "family eviction",
-        "related_themes": ["T3", "T4"],
-        "confidence": "high",
-        "directionality": "explicit"
-      },
-      {
-        "source_object_id": "S3",
-        "source_label": "family eviction",
-        "relationship_type": "leads_to",
-        "target_object_id": "S4",
-        "target_label": "mothers double work shifts",
-        "related_themes": ["T4"],
-        "confidence": "medium",
-        "directionality": "inferred"
-      },
-      {
-        "source_object_id": "S4",
-        "source_label": "mothers double work shifts",
-        "relationship_type": "leads_to",
-        "target_object_id": "S5",
-        "target_label": "children found unsupervised",
-        "related_themes": ["T4"],
-        "confidence": "medium",
-        "directionality": "inferred"
-      },
-      {
-        "source_object_id": "S1",
-        "source_label": "fathers methamphetamine use",
-        "relationship_type": "contributes_to",
-        "target_object_id": "S5",
-        "target_label": "children found unsupervised",
-        "related_themes": ["T3", "T4"],
-        "confidence": "medium",
-        "directionality": "inferred"
-      },
-      {
-        "source_object_id": "S6",
-        "source_label": "lack of substance abuse reassessment",
-        "relationship_type": "undermines",
-        "target_object_id": "S2",
-        "target_label": "fathers job loss",
-        "related_themes": ["T2", "T3"],
-        "confidence": "medium",
-        "directionality": "inferred"
-      },
-      {
-        "source_object_id": "S8",
-        "source_label": "reduced home visit frequency",
-        "relationship_type": "undermines",
-        "target_object_id": "S5",
-        "target_label": "children found unsupervised",
-        "related_themes": ["T5", "T4"],
-        "confidence": "medium",
-        "directionality": "inferred"
-      },
-      {
-        "source_object_id": "S7",
-        "source_label": "timely initial safety assessment",
-        "relationship_type": "reveals",
-        "target_object_id": "S10",
-        "target_label": "initial safety concerns identified",
-        "related_themes": ["T1"],
-        "confidence": "high",
-        "directionality": "explicit"
-      },
-      {
-        "source_object_id": "S9",
-        "source_label": "missing substance abuse treatment referral",
-        "relationship_type": "enables",
-        "target_object_id": "S1",
-        "target_label": "fathers methamphetamine use",
-        "related_themes": ["T7", "T3"],
-        "confidence": "medium",
-        "directionality": "inferred"
+        "target_label": "<noun phrase>",
+        "related_themes": ["<theme_id>"],
+        "confidence": "<high|medium|low>",
+        "directionality": "<explicit|inferred>"
       }
     ]
   }
-}'
-
-
-# ==============================================================================
-# PARSING FUNCTIONS
-# ==============================================================================
-
-#' Parse the full CFSR Item 3 JSON extraction into tidy dataframes
-#'
-#' @param json_string Character string of JSON from LLM response
-#' @param case_id     Optional case identifier to attach to all rows
-#' @return Named list of five dataframes:
-#'         themes, concerns_strengths, semantic_objects, relationships, rel_themes
-parse_cfsr_extraction <- function(json_string, case_id = NA_character_) {
-
-  # -- Parse JSON ---------------------------------------------------------------
-  parsed <- tryCatch(
-    fromJSON(json_string, flatten = TRUE),
-    error = function(e) {
-      warning("JSON parse failed: ", e$message)
-      return(NULL)
-    }
-  )
-
-  if (is.null(parsed)) {
-    warning("Returning empty dataframes for case: ", case_id)
-    return(empty_result(case_id))
-  }
-
-  te <- parsed$theme_extraction
-  rm <- parsed$relationship_map
-
-  # -- 1. Themes ----------------------------------------------------------------
-  themes <- te$themes |>
-    as_tibble() |>
-    mutate(
-      case_id      = case_id,
-      item_rating  = te$item_rating,
-      case_summary = te$case_summary,
-      .before = 1
-    )
-
-  # -- 2. Concerns & Strengths (long format) ------------------------------------
-  concerns_strengths <- bind_rows(
-    tibble(case_id = case_id, type = "concern",  value = te$primary_concerns),
-    tibble(case_id = case_id, type = "strength", value = te$primary_strengths)
-  )
-
-  # -- 3. Semantic Objects ------------------------------------------------------
-  semantic_objects <- rm$semantic_objects |>
-    as_tibble() |>
-    mutate(case_id = case_id, .before = 1)
-
-  # -- 4. Relationships (edge list) ---------------------------------------------
-  relationships <- rm$relationships |>
-    as_tibble() |>
-    mutate(case_id = case_id, .before = 1)
-
-  # Handle related_themes — it comes in as a list column
-  # Keep it as-is for the main table; we'll explode it separately
-  if ("related_themes" %in% names(relationships)) {
-    relationships <- relationships |>
-      mutate(
-        related_themes_flat = map_chr(related_themes, ~ paste(.x, collapse = ", "))
-      )
-  }
-
-  # -- 5. Relationship-to-Theme bridge (one row per theme per relationship) -----
-  rel_themes <- relationships |>
-    select(case_id, source_label, relationship_type, target_label, related_themes) |>
-    unnest(related_themes) |>
-    rename(related_theme_id = related_themes)
-
-  # -- Return -------------------------------------------------------------------
-  list(
-    themes             = themes,
-    concerns_strengths = concerns_strengths,
-    semantic_objects   = semantic_objects,
-    relationships      = relationships |> select(-related_themes),
-    rel_themes         = rel_themes
-  )
 }
 
+---
 
-#' Return empty dataframes with correct structure when parsing fails
-empty_result <- function(case_id = NA_character_) {
-  list(
-    themes = tibble(
-      case_id = character(), item_rating = character(), case_summary = character(),
-      theme_id = character(), theme = character(), finding = character(),
-      excerpt = character(), actor = character(), timeframe = character()
-    ),
-    concerns_strengths = tibble(
-      case_id = character(), type = character(), value = character()
-    ),
-    semantic_objects = tibble(
-      case_id = character(), object_id = character(), label = character(),
-      object_type = character(), sentiment = character()
-    ),
-    relationships = tibble(
-      case_id = character(), source_object_id = character(),
-      source_label = character(), relationship_type = character(),
-      target_object_id = character(), target_label = character(),
-      confidence = character(), directionality = character(),
-      related_themes_flat = character()
-    ),
-    rel_themes = tibble(
-      case_id = character(), source_label = character(),
-      relationship_type = character(), target_label = character(),
-      related_theme_id = character()
-    )
-  )
-}
+## GUIDANCE
 
+- Extract ALL meaningful relationships, not just negative ones. Strengths have
+  causal chains too (e.g., "early concurrent planning" → supports → "timely permanency achievement")
+- Keep semantic objects specific and grounded in the narrative. Use the language
+  and concepts from the case, not abstract categories.
+- A single semantic object can appear in multiple relationships.
+- Prefer "contributes_to" over "causes" unless the narrative explicitly states
+  direct causation. Child welfare cases are complex; most causation is multifactorial.
+- The theme_id references in related_themes should match the theme_id values
+  from Task 1, connecting the two extractions.
+- If the narrative is very brief or lacks detail, return fewer relationships
+  rather than speculating. Set confidence to "low" for any inferred connections.
+- Aim for 3-10 relationships per case depending on narrative length and complexity.
+- Pay special attention to timeline issues — permanency planning has specific
+  federal requirements (12 months to permanency hearing, 15 of 22 months rule for TPR).
 
-# ==============================================================================
-# BATCH PARSING (for processing multiple cases)
-# ==============================================================================
+---
 
-#' Parse multiple JSON extractions and combine into unified dataframes
-#'
-#' @param json_vector  Named character vector (names = case_ids, values = JSON)
-#' @return Named list of five combined dataframes
-parse_batch <- function(json_vector) {
+## EXAMPLE
 
-  results <- imap(json_vector, ~ {
-    cat("Parsing case:", .y, "\n")
-    parse_cfsr_extraction(.x, case_id = .y)
-  })
+Given a narrative excerpt like: "The child entered care in January 2023. The
+agency established reunification as the permanency goal at the initial hearing
+in February 2023. However, the mother failed to engage with substance abuse
+treatment despite multiple referrals. By month 10, the agency had not initiated
+concurrent planning. At the 12-month permanency hearing, the court changed the
+goal to adoption, but TPR was not filed until month 18, delaying the child's
+path to permanency. The foster parents have expressed commitment to adopting."
 
-  list(
-    themes             = map_dfr(results, "themes"),
-    concerns_strengths = map_dfr(results, "concerns_strengths"),
-    semantic_objects   = map_dfr(results, "semantic_objects"),
-    relationships      = map_dfr(results, "relationships"),
-    rel_themes         = map_dfr(results, "rel_themes")
-  )
-}
+The relationship_map would include:
 
+semantic_objects:
+- S1: "mothers failure to engage in treatment" (condition, negative)
+- S2: "delayed concurrent planning" (action, negative)
+- S3: "late TPR filing at month 18" (event, negative)
+- S4: "delayed permanency for child" (state, negative)
+- S5: "foster parent adoption commitment" (state, positive)
+- S6: "timely initial goal establishment" (action, positive)
+- S7: "reunification goal" (goal, neutral)
+- S8: "goal change to adoption at 12 months" (event, neutral)
 
-# ==============================================================================
-# TEST: Parse the sample JSON
-# ==============================================================================
+relationships:
+- S1 → contributes_to → S8 (explicit, high)
+- S2 → delays → S8 (inferred, medium)
+- S3 → delays → S4 (explicit, high)
+- S5 → supports → permanency achievement (inferred, medium)
+- S6 → addresses → federal timeline requirements (explicit, high)
+- S1 → undermines → S7 (inferred, medium)
 
-cat("=" |> strrep(70), "\n")
-cat("PARSING SAMPLE JSON\n")
-cat("=" |> strrep(70), "\n\n")
-
-result <- parse_cfsr_extraction(sample_json, case_id = "CASE-2025-001")
-
-# -- Inspect each table --------------------------------------------------------
-
-cat("--- THEMES ---\n")
-result$themes |>
-  select(case_id, theme_id, theme, finding, actor, timeframe) |>
-  print(n = Inf)
-
-cat("\n--- CONCERNS & STRENGTHS ---\n")
-result$concerns_strengths |>
-  print(n = Inf)
-
-cat("\n--- SEMANTIC OBJECTS ---\n")
-result$semantic_objects |>
-  print(n = Inf)
-
-cat("\n--- RELATIONSHIPS (Edge List) ---\n")
-result$relationships |>
-  select(source_label, relationship_type, target_label, confidence, directionality) |>
-  print(n = Inf)
-
-cat("\n--- RELATIONSHIP-THEME BRIDGE ---\n")
-result$rel_themes |>
-  print(n = Inf)
-
-
-# ==============================================================================
-# QUICK ANALYSIS EXAMPLES
-# ==============================================================================
-
-cat("\n")
-cat("=" |> strrep(70), "\n")
-cat("ANALYSIS EXAMPLES\n")
-cat("=" |> strrep(70), "\n\n")
-
-# -- Theme distribution --------------------------------------------------------
-cat("--- Theme Distribution ---\n")
-result$themes |>
-  count(theme, finding) |>
-  arrange(desc(n)) |>
-  print()
-
-# -- Objects that are root causes (more outgoing than incoming) ----------------
-cat("\n--- Root Cause Candidates (more outgoing than incoming edges) ---\n")
-outgoing <- result$relationships |> count(source_label, name = "outgoing")
-incoming <- result$relationships |> count(target_label, name = "incoming")
-
-full_join(outgoing, incoming, by = c("source_label" = "target_label")) |>
-  rename(label = source_label) |>
-  replace_na(list(outgoing = 0, incoming = 0)) |>
-  mutate(
-    total      = outgoing + incoming,
-    out_in_pct = round(outgoing / total * 100, 0)
-  ) |>
-  arrange(desc(outgoing)) |>
-  print()
-
-# -- Causal chain: trace from a root cause to downstream effects ---------------
-cat("\n--- Causal Chain from 'fathers methamphetamine use' ---\n")
-
-trace_chain <- function(edges, start_label, depth = 0, max_depth = 5) {
-  if (depth >= max_depth) return(invisible(NULL))
-
-  next_edges <- edges |>
-    filter(source_label == start_label)
-
-  if (nrow(next_edges) == 0) return(invisible(NULL))
-
-  for (i in seq_len(nrow(next_edges))) {
-    edge <- next_edges[i, ]
-    indent <- "  " |> strrep(depth)
-    cat(sprintf(
-      "%s%s -[%s]-> %s (%s, %s)\n",
-      indent,
-      edge$source_label,
-      edge$relationship_type,
-      edge$target_label,
-      edge$confidence,
-      edge$directionality
-    ))
-    trace_chain(edges, edge$target_label, depth + 1, max_depth)
-  }
-}
-
-trace_chain(result$relationships, "fathers methamphetamine use")
-
-
-# ==============================================================================
-# BATCH EXAMPLE (simulating multiple cases)
-# ==============================================================================
-
-cat("\n")
-cat("=" |> strrep(70), "\n")
-cat("BATCH PARSING EXAMPLE\n")
-cat("=" |> strrep(70), "\n\n")
-
-# Simulate a batch with 2 copies (in practice these are different cases)
-batch_input <- c(
-  "CASE-2025-001" = sample_json,
-  "CASE-2025-002" = sample_json  # would be different JSON in production
-)
-
-batch_result <- parse_batch(batch_input)
-
-cat("\nBatch themes rows:", nrow(batch_result$themes), "\n")
-cat("Batch relationships rows:", nrow(batch_result$relationships), "\n")
-cat("Batch semantic objects rows:", nrow(batch_result$semantic_objects), "\n")
-
-
-# ==============================================================================
-# EXPORT TO CSV (for further analysis or graph import)
-# ==============================================================================
-
-output_dir <- "cfsr_parsed_output"
-dir.create(output_dir, showWarnings = FALSE)
-
-walk2(
-  result,
-  names(result),
-  ~ write_csv(.x, file.path(output_dir, paste0(.y, ".csv")))
-)
-
-cat("\nCSV files written to:", output_dir, "/\n")
-cat("Files:", paste(list.files(output_dir), collapse = ", "), "\n")
-
+Case Narrative:
