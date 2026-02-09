@@ -1,1 +1,91 @@
 
+# Institutional Memory
+### A Staff Knowledge Map
+
+**Date:** February 2026
+**Status:** Proposal
+
+---
+
+## What This Is
+
+A searchable map of who knows what—and who knows whom.
+
+Staff complete short narrative surveys describing their experience: which states they've worked in, which agencies and systems they know, and who their professional contacts are. The system extracts this information and builds a queryable network, so when someone needs expertise on California's MMIS or a contact at CMS Region 9, they can find the right person in minutes instead of days.
+
+---
+
+## The Problem
+
+Our team has decades of accumulated expertise, but it's invisible. When a project needs someone with Texas Medicaid experience, we ask around. When we need an introduction to a state agency, we hope someone knows someone. This works—until it doesn't.
+
+The knowledge exists. It's just trapped in people's heads, scattered across the team with no way to search it.
+
+---
+
+## Why Leadership Should Care
+
+**Faster staffing decisions.** When a new project comes in, managers can immediately see who has relevant state or system experience instead of relying on memory or informal networks.
+
+**Better use of relationships.** Professional contacts are a strategic asset. Knowing that three people on staff have strong relationships with Ohio's Medicaid director is valuable—but only if you know it.
+
+**Visible expertise gaps.** A map shows not just what we know, but what we don't. If no one on the team has deep experience in a particular region or system, that's useful information for hiring and partnerships.
+
+**Reduced key-person risk.** When expertise is documented, it's less likely to walk out the door unnoticed. This isn't about exit interviews—it's about making institutional knowledge visible while people are still here.
+
+---
+
+## How It Works
+
+**1. Narrative Surveys**
+Staff describe their background in their own words: states worked, systems used, agencies partnered with, lessons learned, and professional contacts (with relationship strength). No rigid forms—stories surface details that checkboxes miss.
+
+**2. Automated Extraction**
+NLP and large language models extract structured data from narratives: names, organizations, systems, locations, and relationships.
+
+**3. Queryable Knowledge Map**
+The extracted data populates a database and network graph. Users can query by state, system, agency, or topic—and see not just who has experience, but who has the strongest current relationships.
+
+---
+
+## Proposed Proof of Concept
+
+**Scope:** 10-15 volunteer staff complete narrative surveys
+
+**Goal:** Validate that:
+- Surveys capture useful, extractable information
+- Automated extraction produces accurate results
+- The resulting network is queryable and valuable
+
+**Deliverables:**
+- Working extraction pipeline
+- Sample queries demonstrating value (e.g., "Who knows California?" "Who has CMS contacts?")
+- Assessment of data quality and coverage
+
+---
+
+## What Could Go Wrong
+
+**Insufficient participation.** If too few people complete surveys, the network will have gaps that make it unreliable. A sparse map may be worse than no map—it creates false confidence.
+
+**Shallow responses.** If surveys don't capture enough detail, the extraction won't produce meaningful relationships. "I worked in Texas" is less useful than "I worked closely with HHSC on their eligibility system modernization and still talk to their CIO quarterly."
+
+**Extraction errors.** NLP isn't perfect. Names get confused, relationships get misclassified, and context gets lost. The system needs human review, at least initially.
+
+**Privacy concerns.** Staff may hesitate to document professional relationships, especially with strength ratings. Clear communication about how the data will be used—and who can see it—is essential.
+
+**Not enough density for network analysis.** Network models are only useful when there are enough connections to reveal patterns. If the proof of concept shows isolated nodes rather than a connected graph, the "network" framing may not hold.
+
+---
+
+## Next Steps
+
+1. Finalize survey format and instructions
+2. Recruit 10-15 volunteers for proof of concept
+3. Run extraction pipeline on collected surveys
+4. Evaluate results and recommend path forward
+
+---
+
+**Contact:** [Project Lead]
+**Repository:** org_knowledge
