@@ -1,1 +1,101 @@
 
+# Alaska 2025-2029 CFSP: Data Systems Summary
+
+## ORCA — Statewide Information System
+
+Alaska's primary child welfare information system is **ORCA** (Online Resource for Children in Alaska). It serves as the statewide case management system and is referenced throughout the document as the source for nearly all performance metrics, case tracking, and reporting. *(pp. 8–20, 22–24, 31–34)*
+
+### Current Capabilities
+
+- Tracks status, demographics, location, and goals for children in foster care *(p. 22)*
+- Generates reports for essential services: investigation timeliness, caseworker visits, case plan currency, placement data *(pp. 8–20)*
+- Supports ICPC tracking and home study completion time reporting *(p. 33)*
+- Tracks Out of Town Requests (OTRs) between regions *(pp. 33–34)*
+- Hosts the "Collaboration with Tribe" activity note for tracking tribal engagement *(p. 58)*
+- Provides data for foster care vacancy and bed capacity analysis by race/ethnicity *(pp. 31–32)*
+- Generates the 15-of-22-months TPR tracking report with compelling reasons documentation *(p. 25)*
+
+### Data Boards
+
+The "Strengthening I&A" program introduced **data boards** that allow investigation staff and supervisors to plan and track actions for assigned investigations. Statewide expansion of data boards is a stated goal for 2025-2029. *(pp. 8, 38)*
+
+---
+
+## System Replacement Efforts
+
+### End-of-Life Status
+
+ORCA has reached its **end of life**. Alaska anticipates being rated "Area Needing Improvement" on the Statewide Information System systemic factor in the upcoming statewide assessment, consistent with the 2019 assessment. *(p. 22)*
+
+### Procurement Process
+
+- Alaska hired **Berry Dunn** to conduct a full feasibility analysis. *(p. 22)*
+- The state down-selected to three options and chose an **accelerator solution** based on cost and time-to-market. *(p. 22)*
+- Procurement was **stalled due to lack of funding** in the Governor's FY25 budget. *(p. 22)*
+- The state cannot move forward without additional funding, personnel, and resources. *(pp. 22–23)*
+
+### Interim Data Quality Strategy
+
+Until a replacement system is funded, Alaska is focusing on: *(pp. 22–23)*
+
+- Removing redundancies in the existing system
+- Standardizing new code
+- Establishing a **Data Governance Plan**
+- Reinforcing data quality checks
+- Identifying opportunities for **automation**
+
+---
+
+## Data Sharing and Integration
+
+### Cross-Agency Data Agreements
+
+- **Department of Early Education and Early Development**: Data sharing agreement for tracking children's educational needs. *(p. 21)*
+- **APSIN (Alaska Public Safety Information Network)**: Criminal history checks integrated with ORCA flagging system for foster parents, unlicensed relatives, and household members 16+. Terminal messages (T-messages) are sent when flagged individuals are charged with crimes. *(p. 30)*
+- **NABCS (New Alaska Background Check System)**: Operated by the Department of Health's Background Check Program; monitors background check recipients and alerts OCS of new criminal charges. *(p. 30)*
+- **Infant Learning Program (ILP)**: Automated nightly electronic referral feeds from ORCA for CAPTA-required referrals of substantiated abuse cases. *(p. 50)*
+- **NEICE**: Used for processing interstate ICPC packets with onboarded states; non-NEICE states use encrypted email. *(p. 33)*
+
+### Known Integration Gaps
+
+- The **court system's permanency hearing reports** do not include current caseworker information or ORCA family IDs. The OCS Data Programming Manager must manually reconcile and distribute this data monthly to regional managers and supervisors. *(p. 24)*
+- A **real-time identification process for CINA civil barriers** is planned but not yet implemented. This will require coordination with regional courts, increased CINA documentation in ORCA, and a new reporting system. *(p. 31)*
+
+---
+
+## Reporting and Data Use
+
+### ORCA Reports Referenced in the Document
+
+| Report / Metric | Purpose | Pages |
+|---|---|---|
+| Investigation timeliness by priority level | Track P1/P2/P3 initiation rates | 8, 11–12 |
+| Caseworker visits (children, mothers, fathers) | Monitor monthly visit compliance by region | 19–20 |
+| Case plan currency (children and parents) | Track current case plans by region | 23–24 |
+| Repeat maltreatment rates (AN/AI vs. non-Native) | Monitor racial disparity in re-maltreatment | 11, 14 |
+| Placement stability (risk-standardized) | Compare to national performance | 12 |
+| 15-of-22-months TPR report | Track TPR status and compelling reasons | 25 |
+| Foster care vacancies by region | Assess placement capacity | 31 |
+| Bed capacity by race/ethnicity | Support diligent recruitment | 32 |
+| OTR tracking | Monitor inter-regional service requests | 33–34 |
+| ICPC home study completion times | Track interstate placement compliance | 33 |
+| APSIN flags, T-messages | Background check monitoring | 30 |
+| Substantiation rates by age/race | Identify populations at greatest risk | 52 |
+
+### NYTD
+
+The Independent Living program uses **NYTD (National Youth in Transition Database)** surveys to collect outcome data on foster youth across six domains: financial self-sufficiency, homelessness, educational attainment, positive connections, high-risk behavior, and health insurance access. Alaska is considering contracting with an outside entity to increase survey completion rates. *(p. 54)*
+
+### Tribal-State Data Group
+
+A dedicated **Tribal-State Data Group** meets to review and identify additional data indicators to ensure accurate representation of strengths and challenges, particularly for Alaska Native children. This group will continue meeting during the 2025-2029 CFSP. *(p. 58)*
+
+---
+
+## Quality Assurance and CQI Data Use
+
+- The QA unit conducts **CFSR-instrument case reviews** using a sample from each region. *(pp. 25–26)*
+- Training from the **Capacity Building Center for States** on Change and Implementation Framework is planned for the QA team. *(pp. 25–26)*
+- The **Plan Do Study Act (PDSA)** format was used by the Fairbanks office during the PIP to create improvement strategies based on review data. *(p. 25)*
+- Essential Services data was a focus area for the Anchorage PIP site. *(p. 25)*
+- Child fatality data is crosswalked between the **Department of Public Health** death records and the ORCA database annually by the QA unit. *(p. 51)*
