@@ -1,1 +1,188 @@
 
+element_no,element_name,xml_tag_name,data_constraint
+1,Title IV-E Agency,E1_title_iv_agency,State agencies: 2-digit state FIPS code; Tribal agencies: 3-digit EPA Tribal standard code
+2,Report Date,E2_report_date,YYYYMM
+3,Local Agency,E3_local_agency,"5-digit state and county FIPS code, or, if unknown, two-digit state code plus ""999"""
+4,Child Record Number,E4_child_record_number,"Encrypted (by ACF Standards), unique within title IV-E agency"
+5,Child's Date of Birth,E5_date_of_birth,YYYYMMDD
+6,Child's Sex,E6_sex,1 = Male; 2 = Female
+7,Agency Made Inquiries,E7_agency_made_inquiries,0 = No; 1 = Yes; Null should only be used by tribal title IV-E agencies
+8,Child's Tribal Membership,E8_tribal_membership,0 = No; 1 = Yes; 9 = Unknown; Null should only be used by tribal agencies
+9,Federally Recognized Tribe,E9_recognized_tribes,3-digit EPA Tribal standard code; Null should be used if element 8 = 0 or 9; Null should be used by tribal agencies
+10,Application of ICWA,E10_icwa,0 = No; 1 = Yes; 9 = Unknown; Null should only be used by tribal agencies
+11,Date of Determination that ICWA Applies,E11_icwa_date,YYYYMMDD; Null should be used if element 10 = 0 or 9; Null should be used by tribal agencies
+12,Notification ICWA,E12_icwa_notification,0 = No; 1 = Yes; Null should be used if element 10 = 0 or 9; Null should be used by Tribal agencies
+13,Child's Race: American Indian or Alaska Native,E13_child_race_american_indian_alaska_native,0 = No; 1 = Yes
+14,Child's Race: Asian,E14_child_race_asian,0 = No; 1 = Yes
+15,Child's Race: Black or African American,E15_child_race_black,0 = No; 1 = Yes
+16,Child's Race: Native Hawaiian or Other Pacific Islander,E16_child_race_native_hawaiian_pacific_islander,0 = No; 1 = Yes
+17,Child's Race: White,E17_child_race_white,0 = No; 1 = Yes
+18,Child's Race: Unknown,E18_child_race_unknown,0 = No; 1 = Yes
+19,Child's Race: Abandoned,E19_child_race_abandoned,0 = No; 1 = Yes
+20,Child's Race: Declined,E20_child_race_declined,0 = No; 1 = Yes
+21,Child's Hispanic or Latino Origin,E21_child_hispanic_latino,0 = No; 1 = Yes; 7 = Abandoned; 8 = Declined; 9 = Unknown
+22,Health Assessment,E22_health_assessment,0 = No; 1 = Yes
+23,Health Conditions,E23_health_conditions,0 = No exam or assessment conducted; 1 = Child has a diagnosed condition; 2 = Exam or assessment conducted and none of the conditions apply; 3 = Exam or assessment conducted but results not received
+24,Intellectual Disability,E24_health_intellectual_disability,0 = Does not apply; 1 = Existing condition; 2 = Previous condition; Null if child does not have a diagnosed condition
+25,Autism Spectrum Disorder,E25_health_autism_spectrum_disorder,0 = Does not apply; 1 = Existing condition; 2 = Previous condition; Null if child does not have a diagnosed condition
+26,Visual Impairment and Blindness,E26_health_visual_impairment,0 = Does not apply; 1 = Existing condition; 2 = Previous condition; Null if child does not have a diagnosed condition
+27,Hearing Impairment and Deafness,E27_health_hearing_impairment,0 = Does not apply; 1 = Existing condition; 2 = Previous condition; Null if child does not have a diagnosed condition
+28,Orthopedic Impairment or Other Physical Condition,E28_health_orthopedic_impairment,0 = Does not apply; 1 = Existing condition; 2 = Previous condition; Null if child does not have a diagnosed condition
+29,Mental/Emotional Disorders,E29_health_mental_disorder,0 = Does not apply; 1 = Existing condition; 2 = Previous condition; Null if child does not have a diagnosed condition
+30,Attention Deficit Hyperactivity Disorder,E30_health_adhd_add,0 = Does not apply; 1 = Existing condition; 2 = Previous condition; Null if child does not have a diagnosed condition
+31,Serious Mental Disorders,E31_health_serious_mental_disorder,0 = Does not apply; 1 = Existing condition; 2 = Previous condition; Null if child does not have a diagnosed condition
+32,Developmental Delay,E32_health_developmental_delay,0 = Does not apply; 1 = Existing condition; 2 = Previous condition; Null if child does not have a diagnosed condition
+33,Developmental Disability,E33_health_developmental_disability,0 = Does not apply; 1 = Existing condition; 2 = Previous condition; Null if child does not have a diagnosed condition
+34,Other Diagnosed Condition,E34_health_other_condition,0 = Does not apply; 1 = Existing condition; 2 = Previous condition; Null if child does not have a diagnosed condition
+35,School Enrollment,E35_school_enrollment,0 = Not enrolled; 1 = Not school age; 2 = Elementary school; 3 = Secondary school; 4 = Postsecondary education or training; 5 = College
+36,Highest Educational Level Completed,E36_school_highest_completed,0 = Kindergarten; 1 = First grade; 2 = Second grade; 3 = Third grade; 4 = Fourth grade; 5 = Fifth grade; 6 = Sixth grade; 7 = Seventh grade; 8 = Eight grade; 9 = Ninth grade; 10 = 10th grade; 11 = 11th grade; 12 = 12th grade; 13 = GED; 14 = Post-secondary; 15 = College; 16 = Not school age; Null if element 35 = 0 and child hasn't completed any educational level
+37,Special Education,E37_school_special_education,0 = No; 1 = Yes
+38,Pregnant,E38_pregnant,0 = No; 1 = Yes; Null = Male
+39,Ever Fathered or Bore Children,E39_fathered_or_bore_child,0 = No; 1 = Yes
+40,Child and His/Her Child(ren) Placed Together,E40_child_and_children_together,0 = No; 1 = Yes; 9 = Not applicable
+41,Prior Adoption,E41_prior_adoption,0 = No; 1 = Yes; 7 = Abandoned
+42,Prior Adoption Date,E42_prior_adoption_date,YYYYMM; Null if element 41 = 0 or 7
+43,Prior Adoption Type - Intercountry,E43_prior_adoption_intercountry,0 = No; 1 = Yes; Null if element 41 = 0 or 7
+44,Prior Guardianship,E44_prior_guardianship,0 = No; 1 = Yes; 7 = Abandoned
+45,Prior Guardianship Date,E45_prior_guardianship_date,YYYYMM; Null if element 44 = 0 or 7
+46,Support/Assistance Received,E46_support_assistance,0 = No support/assistance received; 1 = Received support/financial assistance
+47,State/Tribal Adoption Assistance,E47_state_tribal_adoption_assistance,0 = Does not apply; 1 = Applies
+48,State/Tribal Foster Care,E48_state_tribal_foster_care,0 = Does not apply; 1 = Applies
+49,Title IV-E Adoption Subsidy,E49_adoption_subsidy,0 = Does not apply; 1 = Applies
+50,Title IV-E Guardianship Assistance,E50_guardianship_assistance,0 = Does not apply; 1 = Applies
+51,Title IV-A TANF,E51_tanf_assistance,0 = Does not apply; 1 = Applies
+52,Title IV-B,E52_title_iv_b,0 = Does not apply; 1 = Applies
+53,Chafee Foster Care Independence Program,E53_chafee_foster_program,0 = Does not apply; 1 = Applies
+54,Other Financial Support,E54_other_financial_support,0 = Does not apply; 1 = Applies
+55,Foster Care Maintenance Payment,E55_foster_care_payment,0 = No; 1 = Yes
+56,Total Number of Siblings,E56_total_siblings,0 = No siblings or unknown if the child has siblings; 1 or greater (whole number) = Total number of siblings
+57,Siblings in Foster Care,E57_siblings_in_foster_care,0 = The child does not have siblings in foster care; 1 or greater = The number of siblings in foster care; Null if element 56 = 0
+58,Siblings in Living Arrangement,E58_siblings_in_living_arrangement,"0 = The child has siblings, but they are not in the same living arrangement; 1 or greater = The number of siblings in the same living arrangement; Null if element 56 = 0 or element 57 = 0"
+59,Year of Birth of First Parent or Legal Guardian,E59_first_parent_birth_year,4 digits; 7777 = Abandoned
+60,Year of Birth of Second Parent or Legal Guardian,E60_second_parent_birth_year,4 digits; 7777 = Abandoned; 9999 = Not applicable (only valid for element 60)
+61,Tribal Membership Mother,E61_tribal_membership_mother,0 = No; 1 = Yes; 9 = Unknown; Null if there is no parent; Null should be used by tribal agencies
+62,Tribal Membership Father,E62_tribal_membership_father,0 = No; 1 = Yes; 9 = Unknown; Null if there is no parent; Null should be used by tribal agencies
+63,Termination of Parental Rights for First Parent,E63_tpr_parent1,0 = Not applicable if there is no TPR; 1 = Voluntary; 2 = Involuntary
+64,Termination of Parental Rights for Second Parent,E64_tpr_parent2,0 = Not applicable if there is no TPR; 1 = Voluntary; 2 = Involuntary; Null if there is no second parent
+65,Date of Petition for TPR for First Parent,E65_tpr_petition_date_parent1,YYYYMMDD; 66666666 = Deceased; Null = Not applicable
+66,Date of Petition for TPR for Second Parent,E66_tpr_petition_date_parent2,YYYYMMDD; 66666666 = Deceased; Null = Not applicable; Null if there is no second parent
+67,Date of TPR for First Parent,E67_tpr_date_parent1,YYYYMMDD; Null = Not applicable
+68,Date of TPR for Second Parent,E68_tpr_date_parent2,YYYYMMDD; Null = Not applicable; Null if there is no second parent
+69,Date of Child's Removal,E69_removal_date,YYYYMMDD
+70,Transaction Date: Removal,E70_removal_transaction_date,YYYYMMDD
+71,Environment at Removal,E71_removal_environment,1 = Parent household; 2 = Relative household; 3 = Legal guardian household; 4 = Relative legal guardian household; 5 = Justice facility; 6 = Medical/mental health facility; 7 = Other
+72,Runaway,E72_runaway,0 = Does not apply; 1 = Applies
+73,Whereabouts Unknown,E73_whereabouts_unknown,0 = Does not apply; 1 = Applies
+74,Physical Abuse,E74_physical_abuse,0 = Does not apply; 1 = Applies
+75,Sexual Abuse,E75_sexual_abuse,0 = Does not apply; 1 = Applies
+76,Psychological or Emotional Abuse,E76_psychological_abuse,0 = Does not apply; 1 = Applies
+77,Neglect,E77_neglect,0 = Does not apply; 1 = Applies
+78,Medical Neglect,E78_medical_neglect,0 = Does not apply; 1 = Applies
+79,Domestic Violence,E79_domestic_violence,0 = Does not apply; 1 = Applies
+80,Abandonment,E80_abandonment,0 = Does not apply; 1 = Applies
+81,Failure to Return,E81_failure_to_return,0 = Does not apply; 1 = Applies
+82,Caretaker's Alcohol Use,E82_caretaker_alcohol_use,0 = Does not apply; 1 = Applies
+83,Caretaker's Drug Use,E83_caretaker_drug_use,0 = Does not apply; 1 = Applies
+84,Child Alcohol Use,E84_child_alcohol_use,0 = Does not apply; 1 = Applies
+85,Child Drug Use,E85_child_drug_use,0 = Does not apply; 1 = Applies
+86,Prenatal Alcohol Exposure,E86_prenatal_alcohol_exposure,0 = Does not apply; 1 = Applies
+87,Prenatal Drug Exposure,E87_prenatal_drug_exposure,0 = Does not apply; 1 = Applies
+88,Diagnosed Condition,E88_diagnosed_condition,0 = Does not apply; 1 = Applies
+89,Inadequate Access to Mental Health Services,E89_inadequate_access_to_mental_health,0 = Does not apply; 1 = Applies
+90,Inadequate Access to Medical Services,E90_inadequate_access_to_medical_service,0 = Does not apply; 1 = Applies
+91,Child Behavior Problem,E91_child_behavior_problem,0 = Does not apply; 1 = Applies
+92,Death of Caretaker,E92_death_of_caretaker,0 = Does not apply; 1 = Applies
+93,Incarceration of Caretaker,E93_incarceration_of_caretaker,0 = Does not apply; 1 = Applies
+94,Caretaker's Significant Impairment - Physical/Emotional,E94_caretaker_impairment_physical_emotional,0 = Does not apply; 1 = Applies
+95,Caretaker's Significant Impairment - Cognitive,E95_caretaker_impairment_cognitive,0 = Does not apply; 1 = Applies
+96,Inadequate Housing,E96_inadequate_housing,0 = Does not apply; 1 = Applies
+97,Voluntary Relinquishment for Adoption,E97_voluntary_adoption,0 = Does not apply; 1 = Applies
+98,Child Requested Placement,E98_child_requested_placement,0 = Does not apply; 1 = Applies
+99,Sex Trafficking,E99_sex_trafficking,0 = Does not apply; 1 = Applies
+100,Parental Immigration Detainment or Deportation,E100_parental_immigration_detainment_deportation,0 = Does not apply; 1 = Applies
+101,"Family Conflict Related to Child's Sexual Orientation, Gender Identity, or Gender Expression",E101_family_conflict_gender_orientation,0 = Does not apply; 1 = Applies
+102,Educational Neglect,E102_educational_neglect,0 = Does not apply; 1 = Applies
+103,Public Agency Title IV-E Agreement,E103_public_agency_title_iv_agreement,0 = Does not apply; 1 = Applies
+104,Tribal Title IV-E Agreement,E104_tribal_agreement,0 = Does not apply; 1 = Applies
+105,Homelessness,E105_homelessness,0 = Does not apply; 1 = Applies
+106,Prior Victim of Sex Trafficking,E106_prior_victim_sex_trafficking,0 = No; 1 = Yes
+107,Prior Report to Law Enforcement,E107_prior_victim_sex_trafficking_reported,0 = No; 1 = Yes; Null if element 106 = 0
+108,Prior Date of Sex Trafficking Report to Law Enforcement,E108_prior_victim_sex_trafficking_reported_date,YYYYMMDD; Null if element 107 = 0
+109,Victim of Sex Trafficking While in Foster Care,E109_victim_sex_trafficking,0 = No; 1 = Yes
+110,Report to Law Enforcement for Current Victimization,E110_victim_sex_trafficking_reported,0 = No; 1 = Yes; Null if element 109 = 0
+111,Date of Sex Trafficking Report to Law Enforcement,E111_victim_sex_trafficking_reported_date,YYYYMMDD; Null if element 110 = null or 0
+112,Date of Living Arrangement,E112_date_living_arrangement,YYYYMMDD
+113,Foster Family Home,E113_foster_family_home,0 = No; 1 = Yes
+114,Licensed Home,E114_licensed_home,0 = Does not apply; 1 = Applies; Null if element 113 = 0
+115,Therapeutic Foster Family,E115_therapeutic_home,0 = Does not apply; 1 = Applies; Null if element 113 = 0
+116,Shelter Care Foster Family Home,E116_shelter_care_home,0 = Does not apply; 1 = Applies; Null if element 113 = 0
+117,Relative Foster Family,E117_relative_foster_family,0 = Does not apply; 1 = Applies; Null if element 113 = 0
+118,Pre-Adoptive Home,E118_pre_adopt_home,0 = Does not apply; 1 = Applies; Null if element 113 = 0
+119,Kin Foster Family Home,E119_kin_foster_family,0 = Does not apply; 1 = Applies; Null if element 113 = 0
+120,Other Living Arrangement Type,E120_other_living_arrangement_type,1 = Group home-family operated; 2 = Group home-staff operated; 3 = Group home-shelter care; 4 = Residential treatment center; 5 = Qualified residential treatment program; 6 = Child care institution; 7 = Child care institution-shelter care; 8 = Supervised independent living; 9 = Juvenile justice facility; 10 = Medical or rehabilitative facility; 11 = Psychiatric hospital; 12 = Runaway; 13 = Whereabouts unknown; 14 = Placed at home; Null if element 113 = 1
+121,Location of Living Arrangement,E121_location_of_living_arrangement,1 = In-state or in-Tribal service area; 2 = Out-of-state or out-of-Tribal service area; 3 = Out-of-country; 4 = Runaway or whereabouts unknown
+122,Jurisdiction or Country Where Child is Living,E122_jurisdiction_or_country,State: 2-digit state FIPS code; Tribal: 3-digit EPA Tribal standard code; Country: 3-digit ISO Alpha code; Null if element 121 = 1 or 4
+123,Marital Status of the Foster Parent,E123_marital_status_of_foster_parents,1 = Married couple; 2 = Unmarried couple; 3 = Separated; 4 = Single adult; Null if element 113 = 0
+124,Child's Relationship to the Foster Parent,E124_relationship_to_foster_parents,1 = Relative; 2 = Non-relative; 3 = Kin; Null if element 113 = 0
+125,Year of Birth for First Foster Parent,E125_foster_parent1_birth_year,YYYY; Null if element 113 = 0
+126,Tribal Membership of First Foster Parent,E126_foster_parent1_tribal_membership,0 = No; 1 = Yes; 9 = Unknown; Null if element 113 = 0
+127,Race of First Foster Parent: American Indian or Alaska Native,E127_foster_parent1_race_american_indian_alaska_native,0 = No; 1 = Yes; Null if element 113 = 0
+128,Race of First Foster Parent: Asian,E128_foster_parent1_race_asian,0 = No; 1 = Yes; Null if element 113 = 0
+129,Race of First Foster Parent: Black or African American,E129_foster_parent1_race_black,0 = No; 1 = Yes; Null if element 113 = 0
+130,Race of First Foster Parent: Native Hawaiian or Other Pacific Islander,E130_foster_parent1_race_native_hawaiian_pacific_islander,0 = No; 1 = Yes; Null if element 113 = 0
+131,Race of First Foster Parent: White,E131_foster_parent1_race_white,0 = No; 1 = Yes; Null if element 113 = 0
+132,Race of First Foster Parent: Unknown,E132_foster_parent1_race_unknown,0 = No; 1 = Yes; Null if element 113 = 0
+133,Race of First Foster Parent: Declined,E133_foster_parent1_race_declined,0 = No; 1 = Yes; Null if element 113 = 0
+134,Hispanic or Latino Ethnicity of First Foster Parent,E134_foster_parent1_hispanic_latino,0 = No; 1 = Yes; 8 = Declined; 9 = Unknown; Null if element 113 = 0
+135,Sex of First Foster Parent,E135_foster_parent1_sex,0 = No; 1 = Yes; 8 = Declined; 9 = Unknown; Null if element 113 = 0
+136,Year of Birth for Second Foster Parent,E136_foster_parent2_birth_year,YYYY; Null when there is no second foster parent; Null if element 113 = 0
+137,Tribal Membership of Second Foster Parent,E137_foster_parent2_tribal_membership,0 = No; 1 = Yes; 9 = Unknown; Null when there is no second foster parent; Null if element 113 = 0
+138,Race of Second Foster Parent: American Indian or Alaska Native,E138_foster_parent2_race_american_indian_alaska_native,0 = No; 1 = Yes; Null when there is no second foster parent; Null if element 113 = 0
+139,Race of Second Foster Parent: Asian,E139_foster_parent2_race_asian,0 = No; 1 = Yes; Null when there is no second foster parent; Null if element 113 = 0
+140,Race of Second Foster Parent: Black or African American,E140_foster_parent2_race_black,0 = No; 1 = Yes; Null when there is no second foster parent; Null if element 113 = 0
+141,Race of Second Foster Parent: Native Hawaiian or Other Pacific Islander,E141_foster_parent2_race_native_hawaiian_pacific_islander,0 = No; 1 = Yes; Null when there is no second foster parent; Null if element 113 = 0
+142,Race of Second Foster Parent: White,E142_foster_parent2_race_white,0 = No; 1 = Yes; Null when there is no second foster parent; Null if element 113 = 0
+143,Race of Second Foster Parent: Unknown,E143_foster_parent2_race_unknown,0 = No; 1 = Yes; Null when there is no second foster parent; Null if element 113 = 0
+144,Race of Second Foster Parent: Declined,E144_foster_parent2_race_declined,0 = No; 1 = Yes; Null when there is no second foster parent; Null if element 113 = 0
+145,Hispanic or Latino Ethnicity of Second Foster Parent,E145_foster_parent2_hispanic_latino,0 = No; 1 = Yes; 8 = Declined; 9 = Unknown; Null when there is no second foster parent; Null if element 113 = 0
+146,Sex of Second Foster Parent,E146_foster_parent2_sex,1 = Male; 2 = Female; Null when there is no second foster parent; Null if element 113 = 0
+147,Date of Permanency Plan,E147_permanency_plan_date,YYYYMMDD; Null if a permanency goal has not yet been established
+148,Permanency Plan,E148_permanency_plan_type,1 = Reunify with parent(s) or legal guardian(s); 2 = Live with other relatives; 3 = Adoption; 4 = Guardianship; 5 = Planned permanent living arrangement; Null if a permanency goal has not yet been established
+149,Date of Periodic Review,E149_periodic_review_date,YYYYMMDD; Null = Not applicable
+150,Date of Permanency Hearing,E150_permanency_hearing_date,YYYYMMDD; Null = Not applicable
+151,Caseworker Visit Dates,E151_case_worker_visit_date,YYYYMMDD; Null if the caseworker has not visited
+152,Caseworker Visit Location,E152_case_worker_visit_location,1 = Child's residence; 2 = Other location; Null if the caseworker has not visited
+153,Date of Exit,E153_exit_date,YYYYMMDD; Null if the child has not exited foster care
+154,Transaction Date: Exit,E154_exit_transaction_date,YYYYMMDD; Null if the child has not exited foster care
+155,Exit Reason,E155_exit_reason,1 = Reunify with parent or legal guardian; 2 = Live with other relative; 3 = Adoption; 4 = Emancipation; 5 = Guardianship; 6 = Runaway or whereabouts unknown; 7 = Death of child; 8 = Transfer to another agency; 9 = Not applicable
+156,Transfer to Another Agency,E156_transfer_to_another_agency,1 = State title IV-E agency; 2 = Tribal title IV-E agency; 3 = Indian Tribe or Tribal agency (non-IV-E); 4 = Juvenile justice agency; 5 = Mental health agency; 6 = Other public agency; 7 = Private agency; Null if element 155 != 8
+157,Marital Status of the Adoptive Parent or Guardian,E157_marital_status_of_adoptive_parents,"1 = Married couple; 2 = Unmarried couple; 3 = Separated; 4 = Single adult; 5 = Married but individually adopting or obtaining legal guardianship; Null if element 155 in (1,2,4,6,7,8,9)"
+158,Relative,E158_relationship_to_adoptive_parents_relative,"0 = Does not apply; 1 = Applies; Null if element 155 in (1,2,4,6,7,8,9)"
+159,Kin,E159_relationship_to_adoptive_parents_kin,"0 = Does not apply; 1 = Applies; Null if element 155 in (1,2,4,6,7,8,9)"
+160,Non-Relative,E160_relationship_to_adoptive_parents_non_relative,"0 = Does not apply; 1 = Applies; Null if element 155 in (1,2,4,6,7,8,9)"
+161,Foster Parent,E161_relationship_to_adoptive_parents_foster_parent,"0 = Does not apply; 1 = Applies; Null if element 155 in (1,2,4,6,7,8,9)"
+162,Date of Birth of First Adoptive Parent or Guardian,E162_adoptive_parent1_birth_date,"YYYYMMDD; Null if element 155 in (1,2,4,6,7,8,9)"
+163,Tribal Membership of First Adoptive Parent or Guardian,E163_adoptive_parent1_tribal_membership,"0 = No; 1 = Yes; 9 = Unknown; Null if element 155 in (1,2,4,6,7,8,9)"
+164,Race of First Adoptive Parent or Guardian: American Indian or Alaska Native,E164_adoptive_parent1_race_american_indian_alaska_native,"0 = No; 1 = Yes; Null if element 155 in (1,2,4,6,7,8,9)"
+165,Race of First Adoptive Parent or Guardian: Asian,E165_adoptive_parent1_race_asian,"0 = No; 1 = Yes; Null if element 155 in (1,2,4,6,7,8,9)"
+166,Race of First Adoptive Parent or Guardian: Black or African American,E166_adoptive_parent1_race_black,"0 = No; 1 = Yes; Null if element 155 in (1,2,4,6,7,8,9)"
+167,Race of First Adoptive Parent or Guardian: Native Hawaiian or Other Pacific Islander,E167_adoptive_parent1_race_native_hawaiian_pacific_islander,"0 = No; 1 = Yes; Null if element 155 in (1,2,4,6,7,8,9)"
+168,Race of First Adoptive Parent or Guardian: White,E168_adoptive_parent1_race_white,"0 = No; 1 = Yes; Null if element 155 in (1,2,4,6,7,8,9)"
+169,Race of First Adoptive Parent or Guardian: Unknown,E169_adoptive_parent1_race_unknown,"0 = No; 1 = Yes; Null if element 155 in (1,2,4,6,7,8,9)"
+170,Race of First Adoptive Parent or Guardian: Declined,E170_adoptive_parent1_race_declined,"0 = No; 1 = Yes; Null if element 155 in (1,2,4,6,7,8,9)"
+171,Hispanic or Latino Ethnicity of First Adoptive Parent or Guardian,E171_adoptive_parent1_hispanic_latino,"0 = No; 1 = Yes; 8 = Declined; 9 = Unknown; Null if element 155 in (1,2,4,6,7,8,9)"
+172,Sex of First Adoptive Parent or Guardian,E172_adoptive_parent1_sex,"1 = Male; 2 = Female; Null if element 155 in (1,2,4,6,7,8,9)"
+173,Date of Birth of Second Adoptive Parent or Guardian,E173_adoptive_parent2_birth_date,"YYYYMMDD; Null when there is no second adoptive parent, guardian, or other member of couple; Null if element 155 in (1,2,4,6,7,8,9)"
+174,Tribal Membership of Second Adoptive Parent or Guardian,E174_adoptive_parent2_tribal_membership,"0 = No; 1 = Yes; 9 = Unknown; Null when there is no second adoptive parent; Null if element 155 in (1,2,4,6,7,8,9)"
+175,Race of Second Adoptive Parent or Guardian: American Indian or Alaska Native,E175_adoptive_parent2_race_american_indian_alaska_native,"0 = No; 1 = Yes; Null when there is no second adoptive parent; Null if element 155 in (1,2,4,6,7,8,9)"
+176,Race of Second Adoptive Parent or Guardian: Asian,E176_adoptive_parent2_race_asian,"0 = No; 1 = Yes; Null when there is no second adoptive parent; Null if element 155 in (1,2,4,6,7,8,9)"
+177,Race of Second Adoptive Parent or Guardian: Black or African American,E177_adoptive_parent2_race_black,"0 = No; 1 = Yes; Null when there is no second adoptive parent; Null if element 155 in (1,2,4,6,7,8,9)"
+178,Race of Second Adoptive Parent or Guardian: Native Hawaiian or Other Pacific Islander,E178_adoptive_parent2_race_native_hawaiian_pacific_islander,"0 = No; 1 = Yes; Null when there is no second adoptive parent; Null if element 155 in (1,2,4,6,7,8,9)"
+179,Race of Second Adoptive Parent or Guardian: White,E179_adoptive_parent2_race_white,"0 = No; 1 = Yes; Null when there is no second adoptive parent; Null if element 155 in (1,2,4,6,7,8,9)"
+180,Race of Second Adoptive Parent or Guardian: Unknown,E180_adoptive_parent2_race_unknown,"0 = No; 1 = Yes; Null when there is no second adoptive parent; Null if element 155 in (1,2,4,6,7,8,9)"
+181,Race of Second Adoptive Parent or Guardian: Declined,E181_adoptive_parent2_race_declined,"0 = No; 1 = Yes; Null when there is no second adoptive parent; Null if element 155 in (1,2,4,6,7,8,9)"
+182,Hispanic or Latino Ethnicity of Second Adoptive Parent or Guardian,E182_adoptive_parent2_hispanic_latino,"0 = No; 1 = Yes; 8 = Declined; 9 = Unknown; Null when there is no second adoptive parent; Null if element 155 in (1,2,4,6,7,8,9)"
+183,Sex of Second Adoptive Parent or Guardian,E183_adoptive_parent2_sex,"1 = Male; 2 = Female; Null when there is no second adoptive parent; Null if element 155 in (1,2,4,6,7,8,9)"
+184,Intra/Interjurisdictional Adoption or Guardianship,E184_inter_intrajurisdictional_adoption,"1 = Intrajurisdictional (within state or tribal service area); 2 = Interjurisdictional (outside of state or tribal service area); 3 = Intercountry; Null if element 155 in (1,2,4,6,7,8,9)"
+185,Assistance Agreement Type,E185_assistance_agreement_type,"0 = No agreement; 1 = Title IV-E adoption assistance agreement; 2 = State/tribal adoption assistance agreement; 3 = Adoption-Title IV-E agreement non-recurring expenses only; 4 = Adoption-Title IV-E agreement Medicaid only; 5 = Title IV-E guardianship assistance agreement; 6 = State/tribal guardianship assistance agreement; Null if element 155 in (1,2,4,6,7,8,9)"
+186,Siblings in Adoptive or Guardianship Home,E186_siblings_in_adoptive_home,"0 = child has sibling(s), but not in same home; 1 or greater (whole number) = number of siblings in home; 99 = no siblings/not applicable; Null if element 155 in (1,2,4,6,7,8,9)"
