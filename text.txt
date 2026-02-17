@@ -1,4 +1,3 @@
-
 element_no,element_name,xml_tag_name,data_constraint
 1,Title IV-E Agency,E1_title_iv_agency,State agencies: 2-digit state FIPS code; Tribal agencies: 3-digit EPA Tribal standard code
 2,Report Date,E2_report_date,YYYYMM
