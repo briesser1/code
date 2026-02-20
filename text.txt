@@ -1,1 +1,505 @@
 
+# =============================================================================
+# parse_afcars_ooh.R
+# Parse AFCARS Out-of-Home (OOH) Care XML into tidy dataframes
+#
+# This script reads an XML file conforming to the ACF schema_ooh.xsd and
+# produces a list of linked dataframes:
+#
+#   $children        — one row per child (scalar demographics + flags)
+#   $removals        — one row per removal episode per child
+#   $living_arrangements — one row per living arrangement per removal
+#   $permanency_plans    — one row per permanency plan per removal
+#   $periodic_reviews    — one row per review date per removal
+#   $permanency_hearings — one row per hearing date per removal
+#   $caseworker_visits   — one row per visit per removal
+#   $tribal_codes        — one row per recognized tribe per child
+#
+# All tables include E4_child_record_number as a join key.
+# Removal-level tables also include removal_index.
+#
+# Requirements: xml2, tidyverse (dplyr, purrr, tidyr)
+# =============================================================================
+
+library(xml2)
+library(dplyr)
+library(purrr)
+library(tidyr)
+
+# ---- Helper functions --------------------------------------------------------
+
+#' Safely extract text from a single XML node, returning NA if missing
+xml_text_safe <- function(parent, xpath, ns) {
+
+  node <- xml_find_first(parent, xpath, ns)
+  if (is.na(node)) NA_character_ else xml_text(node)
+}
+
+#' Extract an optional attribute from a node
+xml_attr_safe <- function(parent, xpath, attr_name, ns) {
+
+  node <- xml_find_first(parent, xpath, ns)
+  if (is.na(node)) NA_character_ else xml_attr(node, attr_name)
+}
+
+# ---- Main parsing function ---------------------------------------------------
+
+#' Parse an AFCARS OOH XML file into a list of tidy dataframes
+#'
+#' @param xml_path Path to the XML file
+#' @return A named list of dataframes
+parse_afcars_ooh <- function(xml_path) {
+
+  doc <- read_xml(xml_path)
+  ns  <- xml_ns(doc)
+
+  # If namespace prefix isn't "acf", rename for consistent XPath
+  # The ACF namespace is typically the default; xml2 may assign "d1"
+  ns_prefix <- names(ns)[1]
+
+  # Shorthand for building XPath with whatever prefix xml2 assigned
+  p <- function(...) {
+    parts <- c(...)
+    paste0(ns_prefix, ":", parts)
+  }
+
+  # Top-level header fields
+  header_agency      <- xml_text_safe(doc, paste0("//", p("E1_title_iv_agency")), ns)
+  header_report_date <- xml_text_safe(doc, paste0("//", p("E2_report_date")), ns)
+
+  # All record nodes
+
+  records <- xml_find_all(doc, paste0("//", p("record")), ns)
+  message(sprintf("Found %d child records", length(records)))
+
+  # ------------------------------------------------------------------
+  # Parse each record
+  # ------------------------------------------------------------------
+
+  all_children            <- list()
+  all_removals            <- list()
+  all_living_arrangements <- list()
+  all_permanency_plans    <- list()
+  all_periodic_reviews    <- list()
+  all_permanency_hearings <- list()
+  all_caseworker_visits   <- list()
+  all_tribal_codes        <- list()
+
+  for (i in seq_along(records)) {
+    rec <- records[[i]]
+
+    # -- Child-level scalar fields ------------------------------------------
+    child_id <- xml_text_safe(rec, p("E4_child_record_number"), ns)
+    child_id_prev <- xml_attr_safe(rec, p("E4_child_record_number"), "previous_id", ns)
+
+    child <- tibble(
+      title_iv_agency                = header_agency,
+      report_date                    = header_report_date,
+      E4_child_record_number         = child_id,
+      E4_previous_id                 = child_id_prev,
+      E5_date_of_birth               = xml_text_safe(rec, p("E5_date_of_birth"), ns),
+      E6_sex                         = xml_text_safe(rec, p("E6_sex"), ns),
+
+      # Tribal information (E7–E12)
+      E7_agency_made_inquiries       = xml_text_safe(rec, paste0(p("E7_E12_tribal_information"), "/", p("E7_agency_made_inquiries")), ns),
+      E8_tribal_membership           = xml_text_safe(rec, paste0(p("E7_E12_tribal_information"), "/", p("E8_tribal_membership")), ns),
+      E10_icwa                       = xml_text_safe(rec, paste0(p("E7_E12_tribal_information"), "/", p("E10_icwa")), ns),
+      E11_icwa_date                  = xml_text_safe(rec, paste0(p("E7_E12_tribal_information"), "/", p("E11_icwa_date")), ns),
+      E12_icwa_notification          = xml_text_safe(rec, paste0(p("E7_E12_tribal_information"), "/", p("E12_icwa_notification")), ns),
+
+      # Race (E13–E20)
+      E13_race_american_indian       = xml_text_safe(rec, p("E13_child_race_american_indian_alaska_native"), ns),
+      E14_race_asian                 = xml_text_safe(rec, p("E14_child_race_asian"), ns),
+      E15_race_black                 = xml_text_safe(rec, p("E15_child_race_black"), ns),
+      E16_race_nhpi                  = xml_text_safe(rec, p("E16_child_race_native_hawaiian_pacific_islander"), ns),
+      E17_race_white                 = xml_text_safe(rec, p("E17_child_race_white"), ns),
+      E18_race_unknown               = xml_text_safe(rec, p("E18_child_race_unknown"), ns),
+      E19_race_abandoned             = xml_text_safe(rec, p("E19_child_race_abandoned"), ns),
+      E20_race_declined              = xml_text_safe(rec, p("E20_child_race_declined"), ns),
+      E21_hispanic_latino            = xml_text_safe(rec, p("E21_child_hispanic_latino"), ns),
+
+      # Health (E22–E23)
+      E22_health_assessment          = xml_text_safe(rec, p("E22_health_assessment"), ns),
+      E23_health_conditions          = xml_text_safe(rec, p("E23_health_conditions"), ns),
+
+      # Specific health conditions (E24–E34)
+      E24_intellectual_disability    = xml_text_safe(rec, paste0(p("E24_34_specific_health_conditions"), "/", p("E24_health_intellectual_disability")), ns),
+      E25_autism_spectrum            = xml_text_safe(rec, paste0(p("E24_34_specific_health_conditions"), "/", p("E25_health_autism_spectrum_disorder")), ns),
+      E26_visual_impairment          = xml_text_safe(rec, paste0(p("E24_34_specific_health_conditions"), "/", p("E26_health_visual_impairment")), ns),
+      E27_hearing_impairment         = xml_text_safe(rec, paste0(p("E24_34_specific_health_conditions"), "/", p("E27_health_hearing_impairment")), ns),
+      E28_orthopedic_impairment      = xml_text_safe(rec, paste0(p("E24_34_specific_health_conditions"), "/", p("E28_health_orthopedic_impairment")), ns),
+      E29_mental_disorder            = xml_text_safe(rec, paste0(p("E24_34_specific_health_conditions"), "/", p("E29_health_mental_disorder")), ns),
+      E30_adhd_add                   = xml_text_safe(rec, paste0(p("E24_34_specific_health_conditions"), "/", p("E30_health_adhd_add")), ns),
+      E31_serious_mental_disorder    = xml_text_safe(rec, paste0(p("E24_34_specific_health_conditions"), "/", p("E31_health_serious_mental_disorder")), ns),
+      E32_developmental_delay        = xml_text_safe(rec, paste0(p("E24_34_specific_health_conditions"), "/", p("E32_health_developmental_delay")), ns),
+      E33_developmental_disability   = xml_text_safe(rec, paste0(p("E24_34_specific_health_conditions"), "/", p("E33_health_developmental_disability")), ns),
+      E34_other_condition            = xml_text_safe(rec, paste0(p("E24_34_specific_health_conditions"), "/", p("E34_health_other_condition")), ns),
+
+      # Education (E35–E37)
+      E35_school_enrollment          = xml_text_safe(rec, p("E35_school_enrollment"), ns),
+      E36_school_highest_completed   = xml_text_safe(rec, p("E36_school_highest_completed"), ns),
+      E37_special_education          = xml_text_safe(rec, p("E37_school_special_education"), ns),
+
+      # Pregnancy / parenthood (E38–E40)
+      E38_pregnant                   = xml_text_safe(rec, p("E38_pregnant"), ns),
+      E39_fathered_bore_child        = xml_text_safe(rec, p("E39_fathered_or_bore_child"), ns),
+      E40_child_and_children_together = xml_text_safe(rec, p("E40_child_and_children_together"), ns),
+
+      # Prior adoption (E41–E43)
+      E41_prior_adoption             = xml_text_safe(rec, p("E41_prior_adoption"), ns),
+      E42_prior_adoption_date        = xml_text_safe(rec, paste0(p("E42_E43_prior_adoption_information"), "/", p("E42_prior_adoption_date")), ns),
+      E43_prior_adoption_intercountry = xml_text_safe(rec, paste0(p("E42_E43_prior_adoption_information"), "/", p("E43_prior_adoption_intercountry")), ns),
+
+      # Prior guardianship (E44–E45)
+      E44_prior_guardianship         = xml_text_safe(rec, p("E44_prior_guardianship"), ns),
+      E45_prior_guardianship_date    = xml_text_safe(rec, p("E45_prior_guardianship_date"), ns),
+
+      # Financial support (E46–E55)
+      E46_support_assistance         = xml_text_safe(rec, p("E46_support_assistance"), ns),
+      E47_state_tribal_adoption_asst = xml_text_safe(rec, paste0(p("E47_E54_type_financial_assistance"), "/", p("E47_state_tribal_adoption_assistance")), ns),
+      E48_state_tribal_foster_care   = xml_text_safe(rec, paste0(p("E47_E54_type_financial_assistance"), "/", p("E48_state_tribal_foster_care")), ns),
+      E49_adoption_subsidy           = xml_text_safe(rec, paste0(p("E47_E54_type_financial_assistance"), "/", p("E49_adoption_subsidy")), ns),
+      E50_guardianship_assistance    = xml_text_safe(rec, paste0(p("E47_E54_type_financial_assistance"), "/", p("E50_guardianship_assistance")), ns),
+      E51_tanf_assistance            = xml_text_safe(rec, paste0(p("E47_E54_type_financial_assistance"), "/", p("E51_tanf_assistance")), ns),
+      E52_title_iv_b                 = xml_text_safe(rec, paste0(p("E47_E54_type_financial_assistance"), "/", p("E52_title_iv_b")), ns),
+      E53_chafee_foster_program      = xml_text_safe(rec, paste0(p("E47_E54_type_financial_assistance"), "/", p("E53_chafee_foster_program")), ns),
+      E54_other_financial_support    = xml_text_safe(rec, paste0(p("E47_E54_type_financial_assistance"), "/", p("E54_other_financial_support")), ns),
+      E55_foster_care_payment        = xml_text_safe(rec, p("E55_foster_care_payment"), ns),
+
+      # Siblings (E56–E58)
+      E56_total_siblings             = xml_text_safe(rec, p("E56_total_siblings"), ns),
+      E57_siblings_in_foster_care    = xml_text_safe(rec, paste0(p("E57_E58_siblings_in_foster_care"), "/", p("E57_siblings_in_foster_care")), ns),
+      E58_siblings_in_living_arr     = xml_text_safe(rec, paste0(p("E57_E58_siblings_in_foster_care"), "/", p("E58_siblings_in_living_arrangement")), ns),
+
+      # Parents (E59–E62)
+      E59_first_parent_birth_year    = xml_text_safe(rec, p("E59_first_parent_birth_year"), ns),
+      E60_second_parent_birth_year   = xml_text_safe(rec, p("E60_second_parent_birth_year"), ns),
+      E61_tribal_membership_mother   = xml_text_safe(rec, p("E61_tribal_membership_mother"), ns),
+      E62_tribal_membership_father   = xml_text_safe(rec, p("E62_tribal_membership_father"), ns),
+
+      # Termination of parental rights (E63–E68)
+      E63_tpr_parent1                = xml_text_safe(rec, paste0(p("E63_E68_termination_of_parental_rights"), "/", p("tpr_first_parent"), "/", p("E63_tpr_parent1")), ns),
+      E65_tpr_petition_date_parent1  = xml_text_safe(rec, paste0(p("E63_E68_termination_of_parental_rights"), "/", p("tpr_first_parent"), "/", p("E65_tpr_petition_date_parent1")), ns),
+      E67_tpr_date_parent1           = xml_text_safe(rec, paste0(p("E63_E68_termination_of_parental_rights"), "/", p("tpr_first_parent"), "/", p("E67_tpr_date_parent1")), ns),
+      E64_tpr_parent2                = xml_text_safe(rec, paste0(p("E63_E68_termination_of_parental_rights"), "/", p("tpr_second_parent"), "/", p("E64_tpr_parent2")), ns),
+      E66_tpr_petition_date_parent2  = xml_text_safe(rec, paste0(p("E63_E68_termination_of_parental_rights"), "/", p("tpr_second_parent"), "/", p("E66_tpr_petition_date_parent2")), ns),
+      E68_tpr_date_parent2           = xml_text_safe(rec, paste0(p("E63_E68_termination_of_parental_rights"), "/", p("tpr_second_parent"), "/", p("E68_tpr_date_parent2")), ns),
+
+      # Sex trafficking (E106–E111)
+      E106_prior_victim_sex_trafficking = xml_text_safe(rec, p("E106_prior_victim_sex_trafficking"), ns),
+      E107_prior_trafficking_reported   = xml_text_safe(rec, paste0(p("E107_E108_prior_victim_sex_trafficking_reporting"), "/", p("E107_prior_victim_sex_trafficking_reported")), ns),
+      E109_victim_sex_trafficking       = xml_text_safe(rec, p("E109_victim_sex_trafficking"), ns),
+      E110_trafficking_reported         = xml_text_safe(rec, paste0(p("E110_E111_victim_sex_trafficking_reporting"), "/", p("E110_victim_sex_trafficking_reported")), ns)
+    )
+
+    all_children[[i]] <- child
+
+    # -- Tribal codes (repeating) -------------------------------------------
+    tribe_nodes <- xml_find_all(rec, paste0(
+      p("E7_E12_tribal_information"), "/",
+      p("E9_recognized_tribes"), "/",
+      p("E9_recognized_tribe")
+    ), ns)
+
+    if (length(tribe_nodes) > 0) {
+      tribe_texts <- xml_text(tribe_nodes)
+      tribe_texts <- tribe_texts[nchar(trimws(tribe_texts)) > 0]
+      if (length(tribe_texts) > 0) {
+        all_tribal_codes[[length(all_tribal_codes) + 1]] <- tibble(
+          E4_child_record_number = child_id,
+          E9_recognized_tribe    = tribe_texts
+        )
+      }
+    }
+
+    # -- Sex trafficking reporting dates (repeating) -------------------------
+    # E108 and E111 can repeat; stored on child table as comma-separated or
+    # you could make separate tables. Keeping simple here.
+
+    # -- Removals (one-to-many) ---------------------------------------------
+    removal_nodes <- xml_find_all(rec, paste0(
+      p("E69_E186_removals"), "/", p("removal_2020")
+    ), ns)
+
+    removal_1993_nodes <- xml_find_all(rec, paste0(
+      p("E69_E186_removals"), "/", p("removal_1993")
+    ), ns)
+
+    # Process removal_2020 (full schema)
+    for (r in seq_along(removal_nodes)) {
+      rmv <- removal_nodes[[r]]
+
+      removal_row <- tibble(
+        E4_child_record_number        = child_id,
+        removal_index                 = r,
+        removal_type                  = "2020",
+        E69_removal_date              = xml_text_safe(rmv, p("E69_removal_date"), ns),
+        E70_removal_transaction_date  = xml_text_safe(rmv, p("E70_removal_transaction_date"), ns),
+        E71_removal_environment       = xml_text_safe(rmv, p("E71_removal_environment"), ns),
+        E3_local_agency               = xml_text_safe(rmv, p("E3_local_agency"), ns),
+        E72_runaway                   = xml_text_safe(rmv, p("E72_runaway"), ns),
+        E73_whereabouts_unknown       = xml_text_safe(rmv, p("E73_whereabouts_unknown"), ns),
+        E74_physical_abuse            = xml_text_safe(rmv, p("E74_physical_abuse"), ns),
+        E75_sexual_abuse              = xml_text_safe(rmv, p("E75_sexual_abuse"), ns),
+        E76_psychological_abuse       = xml_text_safe(rmv, p("E76_psychological_abuse"), ns),
+        E77_neglect                   = xml_text_safe(rmv, p("E77_neglect"), ns),
+        E78_medical_neglect           = xml_text_safe(rmv, p("E78_medical_neglect"), ns),
+        E79_domestic_violence         = xml_text_safe(rmv, p("E79_domestic_violence"), ns),
+        E80_abandonment               = xml_text_safe(rmv, p("E80_abandonment"), ns),
+        E81_failure_to_return         = xml_text_safe(rmv, p("E81_failure_to_return"), ns),
+        E82_caretaker_alcohol_use     = xml_text_safe(rmv, p("E82_caretaker_alcohol_use"), ns),
+        E83_caretaker_drug_use        = xml_text_safe(rmv, p("E83_caretaker_drug_use"), ns),
+        E84_child_alcohol_use         = xml_text_safe(rmv, p("E84_child_alcohol_use"), ns),
+        E85_child_drug_use            = xml_text_safe(rmv, p("E85_child_drug_use"), ns),
+        E86_prenatal_alcohol_exposure = xml_text_safe(rmv, p("E86_prenatal_alcohol_exposure"), ns),
+        E87_prenatal_drug_exposure    = xml_text_safe(rmv, p("E87_prenatal_drug_exposure"), ns),
+        E88_diagnosed_condition       = xml_text_safe(rmv, p("E88_diagnosed_condition"), ns),
+        E89_inadequate_mental_health  = xml_text_safe(rmv, p("E89_inadequate_access_to_mental_health"), ns),
+        E90_inadequate_medical        = xml_text_safe(rmv, p("E90_inadequate_access_to_medical_service"), ns),
+        E91_child_behavior_problem    = xml_text_safe(rmv, p("E91_child_behavior_problem"), ns),
+        E92_death_of_caretaker        = xml_text_safe(rmv, p("E92_death_of_caretaker"), ns),
+        E93_incarceration_caretaker   = xml_text_safe(rmv, p("E93_incarceration_of_caretaker"), ns),
+        E94_caretaker_phys_emot       = xml_text_safe(rmv, p("E94_caretaker_impairment_physical_emotional"), ns),
+        E95_caretaker_cognitive       = xml_text_safe(rmv, p("E95_caretaker_impairment_cognitive"), ns),
+        E96_inadequate_housing        = xml_text_safe(rmv, p("E96_inadequate_housing"), ns),
+        E97_voluntary_adoption        = xml_text_safe(rmv, p("E97_voluntary_adoption"), ns),
+        E98_child_requested_placement = xml_text_safe(rmv, p("E98_child_requested_placement"), ns),
+        E99_sex_trafficking           = xml_text_safe(rmv, p("E99_sex_trafficking"), ns),
+        E100_parental_immigration     = xml_text_safe(rmv, p("E100_parental_immigration_detainment_deportation"), ns),
+        E101_family_conflict_gender   = xml_text_safe(rmv, p("E101_family_conflict_gender_orientation"), ns),
+        E102_educational_neglect      = xml_text_safe(rmv, p("E102_educational_neglect"), ns),
+        E103_public_agency_agreement  = xml_text_safe(rmv, p("E103_public_agency_title_iv_agreement"), ns),
+        E104_tribal_agreement         = xml_text_safe(rmv, p("E104_tribal_agreement"), ns),
+        E105_homelessness             = xml_text_safe(rmv, p("E105_homelessness"), ns),
+        E153_exit_date                = xml_text_safe(rmv, p("E153_exit_date"), ns),
+        E154_exit_transaction_date    = xml_text_safe(rmv, p("E154_exit_transaction_date"), ns),
+        E155_exit_reason              = xml_text_safe(rmv, p("E155_exit_reason"), ns),
+        E156_transfer_to_agency       = xml_text_safe(rmv, p("E156_transfer_to_another_agency"), ns),
+
+        # Adoptive parents info (E157–E186) — flattened onto removal row
+        E157_marital_status_adopt     = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E157_marital_status_of_adoptive_parents")), ns),
+        E158_adopt_relative           = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E158_relationship_to_adoptive_parents_relative")), ns),
+        E159_adopt_kin                = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E159_relationship_to_adoptive_parents_kin")), ns),
+        E160_adopt_non_relative       = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E160_relationship_to_adoptive_parents_non_relative")), ns),
+        E161_adopt_foster_parent      = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E161_relationship_to_adoptive_parents_foster_parent")), ns),
+        E184_inter_intra_adoption     = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E184_inter_intrajurisdictional_adoption")), ns),
+        E185_assistance_agreement     = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E185_assistance_agreement_type")), ns),
+        E186_siblings_adopt_home      = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E186_siblings_in_adoptive_home")), ns),
+
+        # Adoptive parent 1 (E162–E172)
+        E162_adopt1_birth_date        = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E162_E172_first_adoptive_parent_information"), "/", p("E162_adoptive_parent1_birth_date")), ns),
+        E163_adopt1_tribal            = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E162_E172_first_adoptive_parent_information"), "/", p("E163_adoptive_parent1_tribal_membership")), ns),
+        E164_adopt1_race_ai_an        = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E162_E172_first_adoptive_parent_information"), "/", p("E164_adoptive_parent1_race_american_indian_alaska_native")), ns),
+        E165_adopt1_race_asian        = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E162_E172_first_adoptive_parent_information"), "/", p("E165_adoptive_parent1_race_asian")), ns),
+        E166_adopt1_race_black        = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E162_E172_first_adoptive_parent_information"), "/", p("E166_adoptive_parent1_race_black")), ns),
+        E167_adopt1_race_nhpi         = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E162_E172_first_adoptive_parent_information"), "/", p("E167_adoptive_parent1_race_native_hawaiian_pacific_islander")), ns),
+        E168_adopt1_race_white        = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E162_E172_first_adoptive_parent_information"), "/", p("E168_adoptive_parent1_race_white")), ns),
+        E169_adopt1_race_unknown      = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E162_E172_first_adoptive_parent_information"), "/", p("E169_adoptive_parent1_race_unknown")), ns),
+        E170_adopt1_race_declined     = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E162_E172_first_adoptive_parent_information"), "/", p("E170_adoptive_parent1_race_declined")), ns),
+        E171_adopt1_hispanic          = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E162_E172_first_adoptive_parent_information"), "/", p("E171_adoptive_parent1_hispanic_latino")), ns),
+        E172_adopt1_sex               = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E162_E172_first_adoptive_parent_information"), "/", p("E172_adoptive_parent1_sex")), ns),
+
+        # Adoptive parent 2 (E173–E183)
+        E173_adopt2_birth_date        = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E173_E183_second_adoptive_parent_information"), "/", p("E173_adoptive_parent2_birth_date")), ns),
+        E174_adopt2_tribal            = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E173_E183_second_adoptive_parent_information"), "/", p("E174_adoptive_parent2_tribal_membership")), ns),
+        E175_adopt2_race_ai_an        = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E173_E183_second_adoptive_parent_information"), "/", p("E175_adoptive_parent2_race_american_indian_alaska_native")), ns),
+        E176_adopt2_race_asian        = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E173_E183_second_adoptive_parent_information"), "/", p("E176_adoptive_parent2_race_asian")), ns),
+        E177_adopt2_race_black        = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E173_E183_second_adoptive_parent_information"), "/", p("E177_adoptive_parent2_race_black")), ns),
+        E178_adopt2_race_nhpi         = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E173_E183_second_adoptive_parent_information"), "/", p("E178_adoptive_parent2_race_native_hawaiian_pacific_islander")), ns),
+        E179_adopt2_race_white        = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E173_E183_second_adoptive_parent_information"), "/", p("E179_adoptive_parent2_race_white")), ns),
+        E180_adopt2_race_unknown      = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E173_E183_second_adoptive_parent_information"), "/", p("E180_adoptive_parent2_race_unknown")), ns),
+        E181_adopt2_race_declined     = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E173_E183_second_adoptive_parent_information"), "/", p("E181_adoptive_parent2_race_declined")), ns),
+        E182_adopt2_hispanic          = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E173_E183_second_adoptive_parent_information"), "/", p("E182_adoptive_parent2_hispanic_latino")), ns),
+        E183_adopt2_sex               = xml_text_safe(rmv, paste0(p("E157_E186_adoptive_parents_information"), "/", p("E173_E183_second_adoptive_parent_information"), "/", p("E183_adoptive_parent2_sex")), ns)
+      )
+
+      all_removals[[length(all_removals) + 1]] <- removal_row
+
+      # -- Living arrangements (nested under removal) -------------------------
+      la_nodes <- xml_find_all(rmv, paste0(
+        p("E112_E146_living_arrangements"), "/", p("living_arrangement")
+      ), ns)
+
+      for (la_idx in seq_along(la_nodes)) {
+        la <- la_nodes[[la_idx]]
+        la_row <- tibble(
+          E4_child_record_number     = child_id,
+          removal_index              = r,
+          living_arrangement_index   = la_idx,
+          E112_date_living_arr       = xml_text_safe(la, p("E112_date_living_arrangement"), ns),
+          E113_foster_family_home    = xml_text_safe(la, p("E113_foster_family_home"), ns),
+
+          # Foster family home type (E114–E119)
+          E114_licensed_home         = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E114_licensed_home")), ns),
+          E115_therapeutic_home      = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E115_therapeutic_home")), ns),
+          E116_shelter_care_home     = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E116_shelter_care_home")), ns),
+          E117_relative_foster       = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E117_relative_foster_family")), ns),
+          E118_pre_adopt_home        = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E118_pre_adopt_home")), ns),
+          E119_kin_foster_family     = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E119_kin_foster_family")), ns),
+
+          E120_other_la_type         = xml_text_safe(la, p("E120_other_living_arrangement_type"), ns),
+          E121_location_of_la        = xml_text_safe(la, p("E121_location_of_living_arrangement"), ns),
+          E122_jurisdiction_country  = xml_text_safe(la, p("E122_jurisdiction_or_country"), ns),
+
+          # Foster parent info (E123–E146) — flattened
+          E123_marital_status_fp     = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E123_marital_status_of_foster_parents")), ns),
+          E124_relationship_fp       = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E124_relationship_to_foster_parents")), ns),
+
+          # Foster parent 1 (E125–E135)
+          E125_fp1_birth_year        = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E125_E135_first_foster_parent_information"), "/", p("E125_foster_parent1_birth_year")), ns),
+          E126_fp1_tribal            = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E125_E135_first_foster_parent_information"), "/", p("E126_foster_parent1_tribal_membership")), ns),
+          E127_fp1_race_ai_an        = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E125_E135_first_foster_parent_information"), "/", p("E127_foster_parent1_race_american_indian_alaska_native")), ns),
+          E128_fp1_race_asian        = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E125_E135_first_foster_parent_information"), "/", p("E128_foster_parent1_race_asian")), ns),
+          E129_fp1_race_black        = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E125_E135_first_foster_parent_information"), "/", p("E129_foster_parent1_race_black")), ns),
+          E130_fp1_race_nhpi         = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E125_E135_first_foster_parent_information"), "/", p("E130_foster_parent1_race_native_hawaiian_pacific_islander")), ns),
+          E131_fp1_race_white        = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E125_E135_first_foster_parent_information"), "/", p("E131_foster_parent1_race_white")), ns),
+          E132_fp1_race_unknown      = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E125_E135_first_foster_parent_information"), "/", p("E132_foster_parent1_race_unknown")), ns),
+          E133_fp1_race_declined     = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E125_E135_first_foster_parent_information"), "/", p("E133_foster_parent1_race_declined")), ns),
+          E134_fp1_hispanic          = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E125_E135_first_foster_parent_information"), "/", p("E134_foster_parent1_hispanic_latino")), ns),
+          E135_fp1_sex               = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E125_E135_first_foster_parent_information"), "/", p("E135_foster_parent1_sex")), ns),
+
+          # Foster parent 2 (E136–E146)
+          E136_fp2_birth_year        = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E136_E146_second_foster_parent_information"), "/", p("E136_foster_parent2_birth_year")), ns),
+          E137_fp2_tribal            = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E136_E146_second_foster_parent_information"), "/", p("E137_foster_parent2_tribal_membership")), ns),
+          E138_fp2_race_ai_an        = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E136_E146_second_foster_parent_information"), "/", p("E138_foster_parent2_race_american_indian_alaska_native")), ns),
+          E139_fp2_race_asian        = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E136_E146_second_foster_parent_information"), "/", p("E139_foster_parent2_race_asian")), ns),
+          E140_fp2_race_black        = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E136_E146_second_foster_parent_information"), "/", p("E140_foster_parent2_race_black")), ns),
+          E141_fp2_race_nhpi         = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E136_E146_second_foster_parent_information"), "/", p("E141_foster_parent2_race_native_hawaiian_pacific_islander")), ns),
+          E142_fp2_race_white        = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E136_E146_second_foster_parent_information"), "/", p("E142_foster_parent2_race_white")), ns),
+          E143_fp2_race_unknown      = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E136_E146_second_foster_parent_information"), "/", p("E143_foster_parent2_race_unknown")), ns),
+          E144_fp2_race_declined     = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E136_E146_second_foster_parent_information"), "/", p("E144_foster_parent2_race_declined")), ns),
+          E145_fp2_hispanic          = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E136_E146_second_foster_parent_information"), "/", p("E145_foster_parent2_hispanic_latino")), ns),
+          E146_fp2_sex               = xml_text_safe(la, paste0(p("E114_E146_foster_family_home_type"), "/", p("E123_E146_foster_parent_information"), "/", p("E136_E146_second_foster_parent_information"), "/", p("E146_foster_parent2_sex")), ns)
+        )
+        all_living_arrangements[[length(all_living_arrangements) + 1]] <- la_row
+      }
+
+      # -- Permanency plans (nested under removal) ----------------------------
+      pp_nodes <- xml_find_all(rmv, paste0(
+        p("E147_E148_permanency_plans"), "/", p("permanency_plan")
+      ), ns)
+
+      for (pp_idx in seq_along(pp_nodes)) {
+        pp <- pp_nodes[[pp_idx]]
+        all_permanency_plans[[length(all_permanency_plans) + 1]] <- tibble(
+          E4_child_record_number    = child_id,
+          removal_index             = r,
+          plan_index                = pp_idx,
+          E147_permanency_plan_date = xml_text_safe(pp, p("E147_permanency_plan_date"), ns),
+          E148_permanency_plan_type = xml_text_safe(pp, p("E148_permanency_plan_type"), ns)
+        )
+      }
+
+      # -- Periodic reviews ---------------------------------------------------
+      pr_nodes <- xml_find_all(rmv, paste0(
+        p("E149_periodic_reviews"), "/", p("E149_periodic_review_date")
+      ), ns)
+
+      for (pr_idx in seq_along(pr_nodes)) {
+        all_periodic_reviews[[length(all_periodic_reviews) + 1]] <- tibble(
+          E4_child_record_number    = child_id,
+          removal_index             = r,
+          review_index              = pr_idx,
+          E149_periodic_review_date = xml_text(pr_nodes[[pr_idx]])
+        )
+      }
+
+      # -- Permanency hearings ------------------------------------------------
+      ph_nodes <- xml_find_all(rmv, paste0(
+        p("E150_permanency_hearings"), "/", p("E150_permanency_hearing_date")
+      ), ns)
+
+      for (ph_idx in seq_along(ph_nodes)) {
+        all_permanency_hearings[[length(all_permanency_hearings) + 1]] <- tibble(
+          E4_child_record_number       = child_id,
+          removal_index                = r,
+          hearing_index                = ph_idx,
+          E150_permanency_hearing_date = xml_text(ph_nodes[[ph_idx]])
+        )
+      }
+
+      # -- Caseworker visits --------------------------------------------------
+      cw_nodes <- xml_find_all(rmv, paste0(
+        p("E151_E152_case_worker_visits"), "/", p("case_worker_visit")
+      ), ns)
+
+      for (cw_idx in seq_along(cw_nodes)) {
+        cw <- cw_nodes[[cw_idx]]
+        all_caseworker_visits[[length(all_caseworker_visits) + 1]] <- tibble(
+          E4_child_record_number       = child_id,
+          removal_index                = r,
+          visit_index                  = cw_idx,
+          E151_case_worker_visit_date  = xml_text_safe(cw, p("E151_case_worker_visit_date"), ns),
+          E152_case_worker_visit_loc   = xml_text_safe(cw, p("E152_case_worker_visit_location"), ns)
+        )
+      }
+    }
+
+    # Process legacy removal_1993 records
+    for (r in seq_along(removal_1993_nodes)) {
+      rmv <- removal_1993_nodes[[r]]
+      removal_row <- tibble(
+        E4_child_record_number       = child_id,
+        removal_index                = length(removal_nodes) + r,
+        removal_type                 = "1993",
+        E69_removal_date             = xml_text_safe(rmv, p("E69_removal_date"), ns),
+        E153_exit_date               = xml_text_safe(rmv, p("E153_exit_date"), ns),
+        E155_exit_reason             = xml_text_safe(rmv, p("E155_exit_reason"), ns)
+      )
+      all_removals[[length(all_removals) + 1]] <- removal_row
+    }
+
+    # Progress indicator for large files
+    if (i %% 500 == 0) message(sprintf("  Processed %d / %d records", i, length(records)))
+  }
+
+  # ------------------------------------------------------------------
+  # Bind all rows
+  # ------------------------------------------------------------------
+  result <- list(
+    children             = bind_rows(all_children),
+    removals             = bind_rows(all_removals),
+    living_arrangements  = if (length(all_living_arrangements) > 0) bind_rows(all_living_arrangements) else tibble(),
+    permanency_plans     = if (length(all_permanency_plans) > 0) bind_rows(all_permanency_plans) else tibble(),
+    periodic_reviews     = if (length(all_periodic_reviews) > 0) bind_rows(all_periodic_reviews) else tibble(),
+    permanency_hearings  = if (length(all_permanency_hearings) > 0) bind_rows(all_permanency_hearings) else tibble(),
+    caseworker_visits    = if (length(all_caseworker_visits) > 0) bind_rows(all_caseworker_visits) else tibble(),
+    tribal_codes         = if (length(all_tribal_codes) > 0) bind_rows(all_tribal_codes) else tibble()
+  )
+
+  message("\n=== Parsing complete ===")
+  message(sprintf("  Children:             %d rows", nrow(result$children)))
+  message(sprintf("  Removals:             %d rows", nrow(result$removals)))
+  message(sprintf("  Living arrangements:  %d rows", nrow(result$living_arrangements)))
+  message(sprintf("  Permanency plans:     %d rows", nrow(result$permanency_plans)))
+  message(sprintf("  Periodic reviews:     %d rows", nrow(result$periodic_reviews)))
+  message(sprintf("  Permanency hearings:  %d rows", nrow(result$permanency_hearings)))
+  message(sprintf("  Caseworker visits:    %d rows", nrow(result$caseworker_visits)))
+  message(sprintf("  Tribal codes:         %d rows", nrow(result$tribal_codes)))
+
+  return(result)
+}
+
+
+# ---- Usage -------------------------------------------------------------------
+
+# Uncomment and set path to your XML file:
+#
+# afcars <- parse_afcars_ooh("path/to/your/afcars_ooh_file.xml")
+#
+# # Access individual tables:
+# afcars$children
+# afcars$removals
+# afcars$living_arrangements
+#
+# # Join removal-level data back to child-level:
+# children_with_removals <- afcars$children |>
+#   left_join(afcars$removals, by = "E4_child_record_number")
+#
+# # Or create a fully flat view (one row per living arrangement):
+# full_flat <- afcars$children |>
+#   left_join(afcars$removals, by = "E4_child_record_number") |>
+#   left_join(
+#     afcars$living_arrangements,
+#     by = c("E4_child_record_number", "removal_index")
+#   )
