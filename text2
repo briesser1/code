@@ -1,495 +1,483 @@
-# Technology Platform Acquisition Best Practices for Non-IT Decision Makers
-### Training Presentation Outline — For Non-IT Executives & Business Leaders
+# Root Cause Modeling Strategy
+
+## From Relationship Extraction to Predictive Root Cause Analysis
+
+**Date**: 2026-03-12
+**Status**: Strategic Planning
 
 ---
 
-## Framing Statement
+## The Core Question
 
-> *"Seventy percent of all IT projects fail to deliver expected business value — not because of technology failure, but because of governance failure."*
-> — Weill & Ross, *IT Governance* (2004), Harvard Business Review Press
+We have successfully extracted causal relationships from CFSR case narratives using LLM extraction. Each case now has:
+- Structured themes with findings (strength/concern/neutral)
+- Semantic objects (nodes representing conditions, actions, events, states)
+- Directional relationships (edges showing causality and contribution)
 
-> *"Getting a new idea adopted, even when it has obvious advantages, is difficult. Many innovations require a lengthy period — often of many years — from the time when they become available to the time when they are widely adopted."*
-> — Everett M. Rogers, *Diffusion of Innovations* (5th ed., 2003), Free Press
-
-Technology platform decisions are among the most consequential — and frequently botched — investments an organization makes. The failure is rarely technical. It is almost always a failure of governance, adoption strategy, and change leadership. This training gives business leaders the conceptual vocabulary and decision frameworks to be *effective participants* in these decisions, even without technical expertise.
-
----
-
-## Section 1: Why Non-IT Leaders Must Engage
-
-### 1.1 The "We'll Let IT Handle It" Problem
-
-The most dangerous thing a non-IT leader can say about a technology acquisition is: *"I'll defer to our IT department."* This abdication creates several documented failure patterns:
-
-- Technology chosen for technical elegance rather than business fit
-- Vendor relationships managed without business context
-- Total cost dramatically underestimated (change management, training, process redesign)
-- Systems that technically work but that no one actually uses
-
-> 📖 **Weill, P. & Ross, J.W.** (2004). *IT Governance: How Top Performers Manage IT Decision Rights for Superior Results.* Harvard Business Review Press.
-> *(Research across 250 enterprises: firms with strong IT governance outperform peers by 25%+ in profit)*
-
-> 📖 **Weill, P. & Ross, J.W.** (2009). *IT Savvy: What Top Executives Must Know to Go from Pain to Gain.* Harvard Business Review Press.
-> *(Written explicitly for non-IT managers; companies with IT-savvy managers are 20% more profitable)*
+**Next Step**: How do we turn hundreds of extracted relationship graphs into a model that can identify root causes in new cases?
 
 ---
 
-### 1.2 The Business Leader's Role Is Irreplaceable
+## Strategic Approaches
 
-Non-IT executives own three things that IT cannot supply:
+### 1. Aggregate Knowledge Graph → Pattern Matching
 
-1. **Business requirements** — what outcomes the organization actually needs
-2. **Change authority** — the ability to mandate process and behavioral changes that adoption requires
-3. **Strategic context** — how this platform fits the organization's operating model and future direction
+Build a **master knowledge graph** by aggregating all individual case graphs:
 
-And critically: business leaders own the *people* who will decide whether to adopt the platform or resist it. Rogers' research makes clear that adoption is a social process, and social processes are driven by leadership, trust, and relationships — not by technology departments.
+**Construction:**
+- **Nodes**: Unique semantic objects appearing across cases (e.g., "parent substance abuse", "delayed TPR filing", "lack of concurrent planning")
+- **Edges**: Relationships weighted by:
+  - Frequency (how often this relationship appears)
+  - Confidence (average LLM confidence scores)
+  - Outcome correlation (association with poor vs. good ratings)
 
-> 📖 **Ross, J.W., Weill, P. & Robertson, D.C.** (2006). *Enterprise Architecture as Strategy: Creating a Foundation for Business Execution.* Harvard Business Review Press.
+**Application to New Cases:**
+1. Extract semantic objects and relationships from new case
+2. Match objects against master knowledge graph
+3. Identify which objects have historically high "out-degree" (many downstream effects)
+4. Flag objects that frequently appear as sources in negative outcome cases
+5. These become **likely root causes**
 
-> 📖 **Rogers, E.M.** (2003). *Diffusion of Innovations* (5th ed.). Free Press. *(Over 4,000 research studies have been published using this framework — it is among the most cited theories in social science)*
-
----
-
-## Section 2: Foundational Concepts Every Decision Maker Needs
-
-### 2.1 The Operating Model: Your Strategic Starting Point
-
-Before evaluating any technology, business leaders must define their **operating model** — how the organization *creates and delivers value* and what degree of *standardization* and *integration* is required across units.
-
-Weill & Ross (2006) define four archetypes:
-
-| Operating Model | Standardization | Integration | Platform Implication |
-|---|---|---|---|
-| **Diversification** | Low | Low | Separate systems per unit; loose coupling |
-| **Coordination** | Low | High | Shared data, flexible local processes |
-| **Replication** | High | Low | Same standardized process, no data sharing |
-| **Unification** | High | High | Single integrated platform across all units (e.g., ERP) |
-
-**Key insight:** Platform acquisition failures often occur when organizations buy a "Unification" system (e.g., SAP) but actually operate on a "Coordination" model — the platform demands more standardization than the organization will accept. This is also a Rogers problem: a platform that is *incompatible* with existing values and practices will face steep adoption resistance regardless of its technical merits.
-
-> 📖 **Ross, J.W., Weill, P. & Robertson, D.C.** (2006). *Enterprise Architecture as Strategy.* Harvard Business Review Press.
+**Key Metrics:**
+- Track which semantic objects appear as `source` in relationship types like `causes`, `contributes_to`, `leads_to` when cases are rated "area_needing_improvement" vs. "strength"
+- Calculate node centrality measures (betweenness, out-degree, PageRank-style importance)
 
 ---
 
-### 2.2 Platform vs. Product — A Critical Distinction
+### 2. Root Cause Scoring Model
 
-McAfee and Brynjolfsson's work on digital economics distinguishes platforms from products in ways that fundamentally change how acquisitions should be evaluated:
+Build a quantitative scoring system based on historical patterns.
 
-- A **product** delivers a fixed bundle of functionality
-- A **platform** creates an ecosystem — its value comes from what *others* build on it, and from network effects
+**For Each Semantic Object in Database, Calculate:**
 
-**Why this matters for acquisition decisions:**
+| Metric | Description | Weight Factor |
+|--------|-------------|---------------|
+| **Causal centrality** | Ratio of out-degree to in-degree (source vs. target) | High weight |
+| **Negative outcome correlation** | Frequency in "area_needing_improvement" cases | High weight |
+| **Path length to outcome** | Average hops from this object to final outcomes | Inverse weight |
+| **Relationship strength** | Types of relationships emanating from it | causes > contributes_to > co_occurs_with |
+| **Confidence score** | Average LLM confidence when this object appears | Medium weight |
+| **Theme association** | Which concern themes it connects to | Context factor |
 
-- A platform's value grows as adoption grows — and collapses if adoption fails
-- Vendor lock-in risks are categorically higher with platforms than with products
-- Ecosystem health (partner network, integration marketplace) must be evaluated as part of the platform itself
+**Root Cause Score Formula:**
+```
+Root_Cause_Score =
+  (Out_degree / Total_degree) ×
+  Weight_for_negative_relationship_types ×
+  Correlation_with_poor_outcomes ×
+  (1 / avg_path_length_to_outcome) ×
+  avg_confidence
+```
 
-This distinction connects directly to Rogers: platforms require *diffusion* to generate value. A platform with strong early adopters but no path to broad organizational adoption is a failed investment regardless of how good the technology is.
-
-> 📖 **McAfee, A. & Brynjolfsson, E.** (2017). *Machine, Platform, Crowd: Harnessing Our Digital Future.* W.W. Norton. *(Chapter 5 is essential on platform dynamics)*
-
-> 📖 **Parker, G.G., Van Alstyne, M.W. & Choudary, S.P.** (2016). *Platform Revolution: How Networked Markets Are Transforming the Economy.* W.W. Norton.
-
----
-
-### 2.3 The Five IT Decision Domains (Weill & Ross)
-
-Not all technology decisions are the same. Weill & Ross identify five categories requiring different governance:
-
-1. **IT Principles** — What role should IT play in this business? *(executive committee decision)*
-2. **IT Architecture** — What technical standards and integration patterns do we require? *(IT + business joint decision)*
-3. **IT Infrastructure** — What shared technology capabilities do we invest in centrally? *(IT decision with business input)*
-4. **Business Application Needs** — What specific capabilities do business units need? *(business unit decision with IT input)*
-5. **IT Investment & Prioritization** — How much to spend, and on what? *(executive committee / board decision)*
-
-> **Teaching Point:** Most non-IT leaders only engage on #4 (what they need). They must also engage on #1 (principles) and #5 (investment) to be effective stewards of technology decisions.
-
-> 📖 **Weill, P. & Ross, J.W.** (2004). *IT Governance.* Harvard Business Review Press. *(The Governance Design Framework — pp. 27–58)*
+**Application to New Cases:**
+1. Extract semantic objects
+2. Score each using pre-computed weights from historical data
+3. Rank objects by score
+4. Top 3-5 scorers = likely root causes
+5. Provide evidence: frequency, typical downstream effects, outcome correlation
 
 ---
 
-## Section 3: Rogers' Diffusion of Innovations — The Adoption Lens
+### 3. Temporal/Sequential Pattern Mining
 
-### 3.1 Why This Framework Belongs in Every Technology Acquisition Conversation
+Leverage the **timeframe** field to detect failure trajectories.
 
-Everett Rogers' *Diffusion of Innovations* (first published 1962; now in its 5th edition) is one of the most cited works in all of social science, with over 4,000 studies published using its framework. Its core argument is deceptively simple and profoundly consequential for technology decisions:
+**Build Event Sequences:**
+- Map typical progression patterns in cases rated poorly
+- Identify "critical windows" where certain barriers lead to cascading failures
+- Example pattern:
+  ```
+  "failed drug test at month 3" →
+  "delayed reunification decision" →
+  "goal change at 12 months" →
+  "late TPR filing at month 18" →
+  "delayed permanency"
+  ```
 
-> *"Diffusion is the process in which an innovation is communicated through certain channels over time among the members of a social system."*
-> — Rogers (2003), p. 5
+**Failure Trajectory Detection:**
+- Build Markov chains or sequence models from historical data
+- For new cases, detect if early events match known failure patterns
+- Flag cases following high-risk trajectories even if outcome hasn't materialized yet
 
-Technology does not spread automatically because it is good. It spreads through social processes — communication, trust, peer influence, and perceived fit. This means that *how* a platform is introduced into an organization matters as much as *which* platform is chosen.
-
-> 📖 **Rogers, E.M.** (2003). *Diffusion of Innovations* (5th ed.). Free Press.
-> *(First published 1962; the foundational text on technology and idea adoption)*
-
----
-
-### 3.2 The Five Adopter Categories
-
-Rogers identified five categories of people within any social system, based on their relative willingness to adopt an innovation. Every organization contains all five. Understanding this distribution is essential for platform rollout strategy.
-
-| Adopter Category | % of Population | Characteristics | Implication for Platform Rollout |
-|---|---|---|---|
-| **Innovators** | ~2.5% | Venturesome, risk-tolerant, technically capable | Useful for early piloting; not representative of mainstream users |
-| **Early Adopters** | ~13.5% | Opinion leaders, respected, well-connected | **Critical:** Their endorsement is what triggers broader adoption |
-| **Early Majority** | ~34% | Deliberate, pragmatic, need evidence | Need proof of value before committing; watch early adopters |
-| **Late Majority** | ~34% | Skeptical, cautious, adopt under peer pressure | Will follow once critical mass is reached |
-| **Laggards** | ~16% | Tradition-bound, resistant, last to adopt | May require mandates or workflow changes to compel adoption |
-
-**The Critical Leadership Insight:** Most platform rollout strategies target *Innovators* (the enthusiastic volunteers) and then wonder why adoption stalls. The real leverage point is the **Early Adopter** — the respected opinion leader whose endorsement communicates legitimacy to the skeptical majority.
-
-> *"Early adopters are more integrated into the local social system than innovators. Whereas innovators are cosmopolites, early adopters are localites. This localness of the early adopter role is crucial."*
-> — Rogers (2003), p. 283
-
-> 📖 **Rogers, E.M.** (2003). *Diffusion of Innovations* (5th ed.). Free Press. *(Chapters 7–8 on adopter categories and opinion leaders)*
+**Use Cases:**
+- **Early warning system**: Identify cases at risk based on early indicators
+- **Critical juncture identification**: Highlight decision points where intervention could prevent cascading failures
+- **Timeline compliance**: Predict likelihood of meeting federal timelines (12-month permanency hearing, 15/22 TPR rule)
 
 ---
 
-### 3.3 The S-Curve of Adoption and Critical Mass
+### 4. Theme + Relationship Hybrid Model
 
-Rogers established that successful adoption follows a predictable **S-shaped curve**:
+Combine structured themes with causal relationships for richer analysis.
 
-- Slow initial uptake (innovators and early adopters)
-- Rapid acceleration once **critical mass** is reached — typically 10–25% adoption
-- Gradual plateau as late majority and laggards come on board
+**Approach:**
+1. **Cluster cases** by theme patterns (not just individual relationships)
+   - Cases with similar theme profiles likely have similar root causes
+   - Use theme distribution as feature vector for clustering
 
-**The Tipping Point:** Rogers coined the term "tipping point" to describe the inflection between early and late majority — the moment at which adoption becomes self-sustaining. Before this point, the platform needs active organizational support. After it, the social system does the work.
+2. **For each cluster**, identify:
+   - Most common semantic objects
+   - Most frequent causal relationships
+   - Typical root causes (high out-degree objects associated with concerns)
 
-**Leadership Implication:** Platform acquisition budgets routinely underinvest in the period between launch and critical mass — the most fragile and expensive phase of any adoption. This is where most organizational adoptions fail.
+3. **New case processing**:
+   - Extract themes and calculate theme profile
+   - Find nearest cluster
+   - Apply that cluster's root cause profile as prior
+   - Refine with case-specific relationship analysis
 
-> 📖 **Rogers, E.M.** (2003). *Diffusion of Innovations* (5th ed.). Free Press.
-> 📖 **Moore, G.A.** (1991). *Crossing the Chasm: Marketing and Selling High-Tech Products to Mainstream Customers.* Harper Business. *(Extends Rogers to argue there is a dangerous "chasm" between early adopters and the early majority — particularly relevant to enterprise software rollouts)*
-
----
-
-### 3.4 The Five Characteristics That Determine Adoption Rate
-
-Rogers identified five characteristics of an innovation that predict how quickly — or whether — it will be adopted. These are directly applicable to platform selection and rollout decisions.
-
-| Characteristic | Definition | Platform Acquisition Question |
-|---|---|---|
-| **Relative Advantage** | Is it meaningfully better than what it replaces? | Can users feel the improvement in their daily work? |
-| **Compatibility** | Does it fit existing values, habits, and workflows? | How much does this platform change how people work? |
-| **Complexity** | How difficult is it to understand and use? | What is the learning curve — and do we have a training plan? |
-| **Trialability** | Can it be tested before full commitment? | Can we pilot before enterprise-wide rollout? |
-| **Observability** | Are the benefits visible to others? | Can early users show colleagues the value? |
-
-> *"Innovations that are perceived by individuals as having greater relative advantage, compatibility, trialability, observability, and less complexity will be adopted more rapidly than other innovations."*
-> — Rogers (2003), p. 16
-
-**Direct Application:** Before finalizing any platform decision, evaluate the platform against all five characteristics from the *end user's* perspective — not from the procurement team's perspective. A platform that scores poorly on Compatibility and Complexity will face serious adoption headwinds regardless of its technical superiority.
-
-> 📖 **Rogers, E.M.** (2003). *Diffusion of Innovations* (5th ed.). Free Press. *(Chapter 6 — the five attributes)*
+**Advantages:**
+- Themes provide interpretable policy/practice categories
+- Themes like "tpr_timeliness" or "concurrent_planning" map directly to intervention areas
+- Can identify systemic patterns (e.g., "cases with court_coordination concerns often share root cause X")
 
 ---
 
-### 3.5 The Innovation-Decision Process
+## Recommended Implementation Path
 
-Rogers also mapped the individual's journey from first exposure to sustained adoption — a five-stage process directly applicable to onboarding strategy:
+### Phase 1: Build the Aggregate Knowledge Graph
 
-1. **Knowledge** — the individual is first exposed to the innovation and gains basic understanding
-2. **Persuasion** — the individual forms a positive or negative attitude toward the innovation
-3. **Decision** — the individual commits to adopt or reject
-4. **Implementation** — the individual puts the innovation to use
-5. **Confirmation** — the individual evaluates the results and either continues or discontinues
+**Step 1.1: Aggregate Relationships**
+```sql
+-- Create master edge list with frequency weighting
+CREATE TABLE knowledge_graph_edges AS
+SELECT
+    source_label,
+    relationship_type,
+    target_label,
+    COUNT(*) AS frequency,
+    AVG(CASE WHEN confidence = 'high' THEN 1.0
+             WHEN confidence = 'medium' THEN 0.6
+             ELSE 0.3 END) AS avg_confidence_weight,
+    -- Outcome correlation
+    SUM(CASE WHEN item_rating = 'area_needing_improvement' THEN 1 ELSE 0 END) AS poor_outcome_count,
+    SUM(CASE WHEN item_rating = 'strength' THEN 1 ELSE 0 END) AS good_outcome_count,
+    -- Associated themes
+    ARRAY_AGG(DISTINCT related_theme_id) AS theme_associations
+FROM cfsr_relationships r
+JOIN cfsr_case_summary c USING (case_id, item_number, round)
+GROUP BY source_label, relationship_type, target_label;
+```
 
-**Why this matters for platform rollouts:** Most onboarding programs address only stages 1 (knowledge/training) and 4 (implementation). They neglect stages 2 (persuasion — *why should I care?*) and 5 (confirmation — *ongoing reinforcement and support*). Users who are trained but not persuaded will use the platform minimally or incorrectly.
+**Step 1.2: Create Node Metadata**
+```sql
+-- Calculate node statistics
+CREATE TABLE knowledge_graph_nodes AS
+WITH node_stats AS (
+    SELECT source_label AS node_label,
+           COUNT(*) AS out_degree,
+           0 AS in_degree
+    FROM cfsr_relationships
+    GROUP BY source_label
+    UNION ALL
+    SELECT target_label AS node_label,
+           0 AS out_degree,
+           COUNT(*) AS in_degree
+    FROM cfsr_relationships
+    GROUP BY target_label
+)
+SELECT
+    node_label,
+    SUM(out_degree) AS total_out_degree,
+    SUM(in_degree) AS total_in_degree,
+    SUM(out_degree) + SUM(in_degree) AS total_degree,
+    ROUND(SUM(out_degree)::NUMERIC / NULLIF(SUM(out_degree) + SUM(in_degree), 0), 3) AS causal_centrality
+FROM node_stats
+GROUP BY node_label;
+```
 
-> 📖 **Rogers, E.M.** (2003). *Diffusion of Innovations* (5th ed.). Free Press. *(Chapter 5 — the innovation-decision process)*
+**Step 1.3: Add Outcome Correlation**
+```sql
+-- Add outcome correlation metadata to nodes
+ALTER TABLE knowledge_graph_nodes ADD COLUMN poor_outcome_correlation NUMERIC;
+ALTER TABLE knowledge_graph_nodes ADD COLUMN good_outcome_correlation NUMERIC;
 
----
-
-## Section 4: The Economics of Technology Platforms
-
-### 4.1 Total Cost of Ownership (TCO): The Tip-of-the-Iceberg Problem
-
-The purchase price or subscription fee for a technology platform is typically **15–25% of its true total cost**. Non-IT leaders who evaluate platforms on licensing cost alone routinely underestimate true investment by 4–6x.
-
-**TCO Components (Gartner Framework):**
-
-| Cost Category | Typical % of TCO |
-|---|---|
-| Software licensing / subscription | 15–25% |
-| Implementation & configuration | 20–30% |
-| Integration with existing systems | 10–20% |
-| Training & change management | 15–25% |
-| Ongoing maintenance & support | 10–15% |
-| Productivity loss during transition | 5–15% |
-
-> 📖 **Gartner.** (Updated annually). *Gartner's TCO Methodology.* Stamford, CT: Gartner Research.
-
-> 📖 **Brynjolfsson, E. & Hitt, L.** (2000). "Beyond Computation: Information Technology, Organizational Transformation and Business Performance." *Journal of Economic Perspectives*, 14(4), 23–48.
-
----
-
-### 4.2 The Productivity Paradox & the Complementarity Insight
-
-Researcher **Erik Brynjolfsson** established one of the most important findings in IT economics: technology investment alone does not produce returns. Value is created by **complementary organizational changes** — process redesign, skills development, and structural change.
-
-> *"IT is a complement to organizational capital, not a substitute for it."*
-> — Brynjolfsson & Hitt (2000)
-
-This finding directly echoes Rogers: diffusion theory tells us that adoption is a social process requiring communication, trust, and peer influence. Neither framework supports the idea that deploying a platform and hoping people use it will deliver value.
-
-> 📖 **Brynjolfsson, E. & McAfee, A.** (2014). *The Second Machine Age: Work, Progress, and Prosperity in a Time of Brilliant Technologies.* W.W. Norton.
-
-> 📖 **Brynjolfsson, E. & Hitt, L.M.** (1998). "Beyond the Productivity Paradox." *Communications of the ACM*, 41(8), 49–55.
-
----
-
-### 4.3 Network Effects and Lock-In
-
-Platforms often exhibit **network effects** — their value increases as more users adopt them. This maps directly onto Rogers' S-curve: the value of the platform accelerates as adoption passes the tipping point, making both the benefits and the switching costs greater over time.
-
-- **Positive:** Widely adopted platforms get better, gain more integrations, attract more support talent
-- **Negative:** Network effects create *switching costs* — the more embedded a platform becomes, the more painful replacement is
-
-> *"The question is not just whether this platform works today — it's whether you can afford to leave it in five years."*
-
-> 📖 **Shapiro, C. & Varian, H.R.** (1999). *Information Rules: A Strategic Guide to the Network Economy.* Harvard Business Review Press. *(The essential economics text on technology lock-in and network effects)*
-
----
-
-## Section 5: A Framework for Technology Platform Decisions
-
-### 5.1 The Requirements-First Imperative
-
-The most common acquisition failure pattern: organizations evaluate technology options *before* they have clearly defined what problem they are solving.
-
-A sound requirements process follows this order:
-
-1. Define the business problem *(in business language, not technical language)*
-2. Define the desired outcomes *(measurable, time-bound)*
-3. Define constraints *(budget, timeline, integration requirements, compliance)*
-4. Define evaluation criteria and weights — *including Rogers' five adoption characteristics*
-5. **Then** evaluate vendor options
-
-> 📖 **Laudon, K.C. & Laudon, J.P.** (2022). *Management Information Systems: Managing the Digital Firm* (17th ed.). Pearson. *(Chapter 13 on acquisition decisions)*
+UPDATE knowledge_graph_nodes n
+SET
+    poor_outcome_correlation = (
+        SELECT COUNT(DISTINCT r.case_id)::NUMERIC / NULLIF(COUNT(DISTINCT c.case_id), 0)
+        FROM cfsr_relationships r
+        JOIN cfsr_case_summary c USING (case_id, item_number, round)
+        WHERE (r.source_label = n.node_label OR r.target_label = n.node_label)
+          AND c.item_rating = 'area_needing_improvement'
+    ),
+    good_outcome_correlation = (
+        SELECT COUNT(DISTINCT r.case_id)::NUMERIC / NULLIF(COUNT(DISTINCT c.case_id), 0)
+        FROM cfsr_relationships r
+        JOIN cfsr_case_summary c USING (case_id, item_number, round)
+        WHERE (r.source_label = n.node_label OR r.target_label = n.node_label)
+          AND c.item_rating = 'strength'
+    );
+```
 
 ---
 
-### 5.2 The Build vs. Buy vs. Subscribe Decision
+### Phase 2: Root Cause Identification Logic
 
-The economics of this decision have shifted dramatically. The default answer is no longer obvious:
+**For Any New Case (or Retrospective Analysis):**
 
-| Option | Best When | Watch Out For |
-|---|---|---|
-| **Build** (custom development) | Unique competitive advantage; no available market solution | Cost overruns; ongoing maintenance burden; talent dependency |
-| **Buy** (perpetual license) | Stable, well-defined requirements; on-premises requirements | Implementation cost; upgrade cycles; customization debt |
-| **Subscribe** (SaaS/cloud) | Rapidly evolving requirements; limited IT staff | Vendor dependency; data portability; long-term cost escalation |
-| **Configure** (off-the-shelf + config) | Industry-standard processes; standard requirements | Over-customization temptation; upgrade incompatibility |
+**Step 2.1: Extract Semantic Objects and Relationships**
+- Run LLM extraction pipeline (already built)
+- Parse JSON output into structured tables
 
-**The Customization Trap:** Extensively customizing a packaged platform gives you the worst of both worlds — you've paid for a platform but built a custom system. Future upgrades become prohibitively expensive. It also increases Rogers' *Complexity* characteristic, reducing the platform's adoptability.
+**Step 2.2: Match Objects to Knowledge Graph**
+```sql
+-- Match new case objects to historical patterns
+CREATE TEMP TABLE new_case_root_scores AS
+SELECT
+    nc.object_id,
+    nc.label,
+    nc.object_type,
+    nc.sentiment,
+    -- Historical metrics from knowledge graph
+    kg.total_out_degree,
+    kg.total_in_degree,
+    kg.causal_centrality,
+    kg.poor_outcome_correlation,
+    kg.good_outcome_correlation,
+    -- Calculate root cause score
+    (kg.causal_centrality *
+     kg.poor_outcome_correlation *
+     (1.0 / NULLIF(kg.total_in_degree, 0))) AS root_cause_score
+FROM new_case_semantic_objects nc
+LEFT JOIN knowledge_graph_nodes kg ON nc.label = kg.node_label
+WHERE nc.sentiment = 'negative'  -- Focus on negative conditions
+ORDER BY root_cause_score DESC NULLS LAST;
+```
 
-> 📖 **McAfee, A.** (2003). "When Too Much IT Knowledge Is a Dangerous Thing." *MIT Sloan Management Review*, 44(2), 83–90.
+**Step 2.3: Rank and Present Root Causes**
+```sql
+-- Get top root causes with evidence
+SELECT
+    label AS root_cause,
+    object_type,
+    root_cause_score,
+    total_out_degree AS times_caused_downstream_effects,
+    poor_outcome_correlation AS pct_cases_with_poor_outcomes,
+    -- Get typical downstream effects
+    (SELECT ARRAY_AGG(DISTINCT target_label)
+     FROM knowledge_graph_edges
+     WHERE source_label = nc.label
+       AND relationship_type IN ('causes', 'contributes_to', 'leads_to')
+     LIMIT 5) AS typical_effects
+FROM new_case_root_scores nc
+WHERE root_cause_score IS NOT NULL
+ORDER BY root_cause_score DESC
+LIMIT 5;
+```
 
----
-
-### 5.3 The Vendor Evaluation Framework
-
-Beyond feature checklists, platforms should be evaluated on four strategic tiers — with Rogers' five adoption characteristics integrated into Tier 1:
-
-**Tier 1: Strategic & Adoption Fit**
-- Does the vendor's roadmap align with our business direction?
-- Does the platform's operating model assumption match ours?
-- How does this platform score on Rogers' five characteristics (relative advantage, compatibility, complexity, trialability, observability) from the *end user's* perspective?
-- Is the vendor financially stable with a viable long-term future?
-
-**Tier 2: Ecosystem Health**
-- Size and quality of partner/integrator network
-- Quality of the developer ecosystem and available integrations
-- User community strength (documentation, peer learning, talent availability)
-
-**Tier 3: Risk Profile**
-- Data portability — can we extract our data if we leave?
-- Contract terms — auto-renewal traps, price escalation clauses, SLA penalties
-- Security and compliance certifications relevant to your industry
-
-**Tier 4: Total Cost (Full Lifecycle)**
-- Implementation: internal time + external consulting
-- Training and change management
-- Integration with existing systems
-- Year 2–5 subscription/maintenance trajectory
-
-> 📖 **Gerow, J.E., Thatcher, J.B. & Grover, V.** (2015). "Six Types of IT-Business Strategic Alignment: An Investigation of the Constructs and Their Measurement." *European Journal of Information Systems*, 24(5), 465–491.
-
----
-
-### 5.4 The Governance Model: Who Decides What?
-
-Poorly designed decision governance is a leading cause of platform acquisition failure. Weill & Ross found that most organizations cannot accurately describe how their technology decisions are made.
-
-**Five Decision Governance Archetypes:**
-
-| Archetype | Description | Best For |
-|---|---|---|
-| **Business Monarchy** | Senior business executives decide | IT Principles, Investment |
-| **IT Monarchy** | IT specialists decide | Infrastructure, Architecture |
-| **Feudal** | Each business unit decides independently | Diverse, decentralized organizations |
-| **Federal** | Business and IT jointly decide | Application needs, shared platforms |
-| **Duopoly** | IT + one business partner decide | Infrastructure strategy |
-
-> **Critical Finding from Weill & Ross:** High-performing organizations use *different archetypes for different decision types*. The failure is not having a structure at all.
-
-> 📖 **Weill, P. & Ross, J.W.** (2005). "A Matrixed Approach to Designing IT Governance." *MIT Sloan Management Review*, 46(2), 26–34.
+**Step 2.4: Generate Narrative Explanation**
+For each identified root cause, provide:
+- **Prevalence**: "This condition appears in X% of similar cases"
+- **Impact**: "It typically leads to [Y] through relationship type [Z]"
+- **Outcome association**: "Cases with this condition are N% more likely to be rated as needing improvement"
+- **Common co-factors**: "Often appears alongside [A, B, C]"
+- **Intervention points**: "Connected to themes: [theme list]"
 
 ---
 
-## Section 6: Behavioral Biases That Derail Technology Acquisitions
+### Phase 3: Validation and Refinement
 
-Non-IT decision makers are particularly susceptible to predictable cognitive errors — several of which connect directly to Rogers' findings on how people perceive and evaluate innovations.
+**Backtest on Historical Cases:**
+1. Hold out 20% of cases as test set
+2. Train knowledge graph on remaining 80%
+3. For each test case, predict root causes
+4. Compare predictions to:
+   - Primary concerns listed in extraction
+   - Item rating (strength vs. ANI)
+   - Human reviewer assessments (if available)
 
-### 6.1 The Shiny Object Bias
-Selecting technology based on impressive demonstrations rather than fit-for-purpose evaluation. Vendors are extraordinarily skilled at demo environments that bear little resemblance to production reality.
+**Metrics:**
+- Precision@K: How many of top K predicted root causes are in actual concerns?
+- Recall: What % of actual concerns did we identify?
+- Outcome correlation: Do predicted root causes correlate with item ratings?
 
-**Countermeasure:** Require vendors to demonstrate the platform against *your actual use cases*, with *your data structures*, including failure scenarios. Evaluate through Rogers' lens: does this platform have genuine *relative advantage* for your users, or just impressive features?
+**Cross-Item Validation:**
+- Compare Item 5 predicted root causes to Items 12-18 (services/needs assessment)
+- Do Item 5 barriers show up as unmet needs in Item 12?
+- Do Item 14-15 caseworker visit quality issues explain permanency delays?
 
----
-
-### 6.2 The Innovator's Fallacy
-Confusing the enthusiasm of your internal innovators (Rogers' 2.5%) with evidence of organizational readiness. A platform that your most tech-forward employees love may still face massive resistance from the early majority and late majority.
-
-**Countermeasure:** Pilot with *representative* users — not just volunteers — and specifically seek input from people who are skeptical. Their objections reveal the compatibility and complexity barriers that will determine whether adoption reaches critical mass.
-
----
-
-### 6.3 The Sunk Cost Escalation
-Continuing to invest in a failing platform because of past investment — documented extensively in IT project research.
-
-> 📖 **Pan, G., Pan, S.L. & Lim, C.Y.** (2006). "Examining How Firms Leverage IT to Achieve Firm Performance: Lessons from SAP and Its Implementation." *Information & Management*, 43(7), 876–884.
-
----
-
-### 6.4 The Optimism Bias in Implementation Estimates
-Research across thousands of IT projects consistently shows organizations underestimate implementation time and cost by 2–3x.
-
-> 📖 **Flyvbjerg, B. & Budzier, A.** (2011). "Why Your IT Project May Be Riskier Than You Think." *Harvard Business Review*, 89(9), 23–25.
-> *(Analysis of 1,471 IT projects — average cost overrun: 27%; 15% of projects exceeded budget by 200%+)*
+**Refinement Opportunities:**
+- Tune scoring formula weights based on validation performance
+- Add domain-specific rules (e.g., ICWA compliance issues always high priority)
+- Incorporate federal timeline rules (15/22 month TPR requirement)
 
 ---
 
-### 6.5 The Reference Customer Fallacy
-Assuming that because a platform worked at a similar-sounding organization, it will work for yours. Rogers' research is unambiguous on this: the characteristics of the *receiving* social system — its norms, change capacity, leadership, and communication channels — determine adoption outcomes as much as the innovation itself.
+## Implementation Considerations
+
+### 1. Node Deduplication Challenge
+
+**Problem**: Semantic object labels vary across cases
+- "parent substance abuse" vs "maternal drug use" vs "mother's addiction"
+- Same concept, different phrasing
+
+**Solutions:**
+
+| Approach | Pros | Cons | Recommendation |
+|----------|------|------|----------------|
+| **Manual mapping** | High accuracy, domain knowledge | Time-intensive, not scalable | Use for top 100 frequent objects |
+| **Embedding-based clustering** | Scalable, captures semantic similarity | May merge distinct concepts | Good for initial deduplication |
+| **LLM-based normalization** | Highest accuracy, context-aware | Cost per object, needs validation | Best for production system |
+| **Hybrid**: Manual + LLM | Combines accuracy and efficiency | Requires maintenance | **Recommended** |
+
+**Implementation:**
+```sql
+-- Create canonical object mapping table
+CREATE TABLE semantic_object_mapping (
+    variant_label VARCHAR(200),
+    canonical_label VARCHAR(200),
+    mapping_confidence NUMERIC,
+    mapping_method VARCHAR(50), -- 'manual', 'embedding', 'llm', 'exact'
+    review_status VARCHAR(50)   -- 'approved', 'needs_review', 'auto'
+);
+```
 
 ---
 
-## Section 7: Change Management — The Underestimated Half
+### 2. Cross-Item Analysis
 
-### 7.1 Technology Adoption Is a Social Process, Not a Technical One
+**Question**: Separate knowledge graphs per item, or unified graph?
 
-Rogers' lifetime of research converges on a single insight that most platform acquisition teams ignore: adoption is fundamentally a social process, driven by communication, trust, and peer influence. The technology is merely the occasion.
+**Option A: Item-Specific Graphs**
+- Pros: Item themes are distinct; goals/timelines for Item 5 different from visitation in Item 8
+- Cons: Miss cross-item causal chains
 
-> *"The consequences of an innovation are the changes that occur to an individual or to a social system as a result of the adoption or rejection of an innovation."*
-> — Rogers (2003), p. 436
+**Option B: Unified Graph**
+- Pros: Can trace multi-item causality (Item 15 caseworker visits → Item 5 permanency delays)
+- Cons: May dilute item-specific patterns
 
-**The Practical Implication for Leaders:** Identify your organization's Early Adopters *before* you select the platform — these are the opinion leaders whose endorsement will determine whether the Early Majority follows. Involve them in evaluation. Give them early access. Make their success visible.
+**Recommendation: Hybrid Approach**
+- Primary analysis: Item-specific graphs
+- Secondary analysis: Cross-item relationship mining
+- Track which Item 5 root causes appear as outcomes in other items
 
----
-
-### 7.2 The ADKAR Change Model Applied to Platform Adoption
-
-The ADKAR model (Hiatt, 2006) maps directly onto Rogers' innovation-decision process, providing an actionable change management framework:
-
-| ADKAR Stage | Rogers' Parallel | Leadership Action |
-|---|---|---|
-| **Awareness** — why change is needed | Knowledge stage | Communicate the business case clearly and repeatedly |
-| **Desire** — motivation to support the change | Persuasion stage | Engage opinion leaders; address "what's in it for me?" |
-| **Knowledge** — how to use the new system | Decision stage | Training, documentation, peer coaching |
-| **Ability** — skill to perform effectively | Implementation stage | Practice time, help desks, workflow support |
-| **Reinforcement** — sustaining adoption | Confirmation stage | Metrics, recognition, accountability |
-
-> 📖 **Hiatt, J.M.** (2006). *ADKAR: A Model for Change in Business, Government and our Community.* Prosci Learning Center.
-
-> 📖 **Kotter, J.P.** (1996). *Leading Change.* Harvard Business Review Press.
+**Example Cross-Item Pattern:**
+```
+Item 12 (Needs Assessment) concern: "inadequate substance abuse services"
+  → contributes_to →
+Item 2 (Services to Prevent Removal) concern: "parent non-compliance"
+  → leads_to →
+Item 5 (Permanency Goal) outcome: "delayed reunification, goal changed to adoption"
+```
 
 ---
 
-### 7.3 The 70-20-10 Budget Rebalancing Principle
+### 3. Outcome Definition
 
-Research from organizational transformation literature suggests a rebalanced investment ratio for technology projects:
+**What are we predicting root causes FOR?**
 
-- **70%** — people, process, and change management
-- **20%** — training and capability building
-- **10%** — technology configuration and customization
+| Outcome Type | Definition | Use Case |
+|--------------|------------|----------|
+| **Item rating** | strength vs. area_needing_improvement | Quality improvement, state performance |
+| **Specific permanency outcome** | reunification achieved, adoption finalized | Case-level intervention |
+| **Timeline compliance** | 12-month goal establishment, 15/22 TPR filing | Federal compliance monitoring |
+| **Multi-item profile** | Pattern across safety/permanency/well-being | Systemic issue identification |
 
-Most organizations invert this — spending 70%+ on technology and 10% on change management. Given Rogers' evidence that adoption is a social process, this inversion almost guarantees underperformance.
-
-> 📖 **Prosci Research.** (2018). *Best Practices in Change Management* (10th ed.). Prosci.
-> *(Largest ongoing study of organizational change — 3,400+ participants)*
-
----
-
-### 7.4 The Opinion Leader Strategy
-
-Rogers' research is particularly clear about one high-leverage intervention: **identify and activate opinion leaders early**. Opinion leaders in an organizational context are not necessarily the most senior people — they are the most *trusted* and *connected*.
-
-- They are the individuals others informally consult before making decisions
-- Their adoption signals to the early majority that the platform is legitimate and safe
-- Their resistance — even if silent — will undermine any rollout
-
-**Practical Action:** Before launching any platform rollout, map your informal influence network. Who do people actually go to for advice? Those are your opinion leaders. Win them before you go broad.
-
-> 📖 **Rogers, E.M.** (2003). *Diffusion of Innovations* (5th ed.). Free Press. *(Chapter 8 — opinion leaders and change agents)*
+**Recommendation**: Start with **item rating** (already in data), then expand to specific outcomes as data accumulates.
 
 ---
 
-## Section 8: Presentation Slide Arc
+### 4. Actionability and Use Cases
 
-| Slide | Topic |
-|---|---|
-| 1 | Opening: *"Tell me about a technology decision that didn't go as planned."* |
-| 2 | The Stakes: Why 70% of IT investments underperform |
-| 3 | Your Role: What only business leaders can contribute |
-| 4 | Know Your Operating Model: What kind of platform do you actually need? |
-| 5 | Platform vs. Product: Why it matters for your decision |
-| 6 | Rogers' Framework: Technology adoption is a social process |
-| 7 | The Five Adopter Categories: Who's in your organization? |
-| 8 | The Five Adoption Characteristics: How to evaluate platforms for adoptability |
-| 9 | The Total Cost Iceberg: What you're really buying |
-| 10 | The Five Decision Domains: Knowing what's yours to decide |
-| 11 | The Requirements-First Framework: Never evaluate before you specify |
-| 12 | Build vs. Buy vs. Subscribe: The decision tree |
-| 13 | Cognitive Traps: The biases that sink technology decisions |
-| 14 | Change Management: Activating your opinion leaders |
-| 15 | Key Takeaways: 6 Questions to ask before the next technology decision |
-| 16 | Recommended Reading & Discussion |
+**Retrospective Analysis** (Understanding what went wrong)
+- For cases rated "area needing improvement", identify root causes
+- Aggregate across state/county to find systemic issues
+- Policy reports: "Top 5 barriers to permanency in State X"
 
----
+**Prospective Flagging** (Early warning system)
+- For ongoing cases, predict likelihood of poor outcome based on current indicators
+- Flag high-risk cases for supervisory review
+- Recommend interventions based on which root causes are appearing
 
-## Section 9: Six Questions Every Non-IT Leader Should Ask
+**Policy Guidance** (Which barriers are most impactful)
+- Rank barriers by frequency × impact on outcomes
+- Identify which are modifiable through policy/practice changes
+- Cost-benefit analysis: Which interventions address highest-impact root causes?
 
-These questions apply to any current or upcoming technology platform decision:
-
-1. **Have we defined the business problem in business terms before we looked at any technology?**
-2. **Does our operating model require the level of standardization this platform imposes?**
-3. **How does this platform score on Rogers' five adoption characteristics — from the end user's perspective, not ours?**
-4. **Have we calculated full TCO over 5 years, including change management and integration?**
-5. **Who has decision rights for this choice — and is that governance structure explicitly agreed upon?**
-6. **Have we identified our opinion leaders, and are they involved before we go to broad rollout?**
+**Training and Quality Assurance**
+- Show caseworkers common failure patterns
+- Highlight critical decision points where early intervention matters
+- Build case studies from real causal chains
 
 ---
 
-## Section 10: Master Bibliography
+## Next Steps
 
-| Author(s) | Year | Title | Publisher | Notes |
-|---|---|---|---|---|
-| Rogers, E.M. | 2003 | *Diffusion of Innovations* (5th ed.) | Free Press | Foundational adoption theory; 4,000+ studies cite this work |
-| Weill, P. & Ross, J.W. | 2004 | *IT Governance* | HBR Press | Essential governance framework |
-| Weill, P. & Ross, J.W. | 2009 | *IT Savvy* | HBR Press | Written for non-IT executives |
-| Ross, J.W., Weill, P. & Robertson, D.C. | 2006 | *Enterprise Architecture as Strategy* | HBR Press | Operating model framework |
-| McAfee, A. & Brynjolfsson, E. | 2017 | *Machine, Platform, Crowd* | W.W. Norton | Platform economics |
-| McAfee, A. & Brynjolfsson, E. | 2014 | *The Second Machine Age* | W.W. Norton | Technology & organizational change |
-| Moore, G.A. | 1991 | *Crossing the Chasm* | Harper Business | Extends Rogers to enterprise technology gaps |
-| Shapiro, C. & Varian, H.R. | 1999 | *Information Rules* | HBR Press | Network effects and lock-in |
-| Parker, G.G., Van Alstyne, M.W. & Choudary, S.P. | 2016 | *Platform Revolution* | W.W. Norton | Platform strategy |
-| Brynjolfsson, E. & Hitt, L. | 2000 | "Beyond Computation" | *Journal of Economic Perspectives*, 14(4) | Productivity Paradox research |
-| Brynjolfsson, E. & Hitt, L.M. | 1998 | "Beyond the Productivity Paradox" | *Communications of the ACM*, 41(8) | IT complementarity |
-| Laudon, K.C. & Laudon, J.P. | 2022 | *Management Information Systems* (17th ed.) | Pearson | Standard MIS textbook |
-| Flyvbjerg, B. & Budzier, A. | 2011 | "Why Your IT Project May Be Riskier Than You Think" | *HBR*, 89(9) | IT project failure analysis |
-| Kotter, J.P. | 1996 | *Leading Change* | HBR Press | Change management |
-| Hiatt, J.M. | 2006 | *ADKAR* | Prosci | Change adoption model |
-| Prosci | 2018 | *Best Practices in Change Management* (10th ed.) | Prosci | Research-based change guide |
-| Weill, P. & Ross, J.W. | 2005 | "A Matrixed Approach to Designing IT Governance" | *MIT Sloan Management Review*, 46(2) | Governance archetypes |
-| McAfee, A. | 2003 | "When Too Much IT Knowledge Is a Dangerous Thing" | *MIT Sloan Management Review*, 44(2) | Customization risks |
-| Pan, G., Pan, S.L. & Lim, C.Y. | 2006 | "Examining How Firms Leverage IT..." | *Information & Management*, 43(7) | ERP failure case study |
-| Gerow, J.E., Thatcher, J.B. & Grover, V. | 2015 | "Six Types of IT-Business Strategic Alignment" | *European Journal of Information Systems*, 24(5) | Alignment framework |
+1. **Immediate**: Populate database with extraction results from pilot cases
+2. **Week 1-2**: Build aggregate knowledge graph (Phase 1)
+3. **Week 3**: Implement root cause scoring logic (Phase 2)
+4. **Week 4**: Validate on held-out cases (Phase 3)
+5. **Month 2**: Address node deduplication with LLM normalization
+6. **Month 3**: Build cross-item causal chain analysis
+7. **Month 4**: Develop predictive early warning models
+
+---
+
+## Open Questions for Decision
+
+1. **Scope**: Start with single item (Item 5) or all 18 items simultaneously?
+2. **Deduplication method**: LLM-based normalization now, or manual mapping for MVP?
+3. **Primary use case**: Retrospective analysis, prospective flagging, or policy guidance?
+4. **Validation standard**: What counts as "correct" root cause identification?
+5. **Cross-round analysis**: Compare Round 3 vs Round 4 patterns, or treat as single dataset?
+
+---
+
+## Technical Architecture (Future)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  New Case Narrative                                      │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  LLM Extraction Pipeline                                 │
+│  - Theme extraction                                      │
+│  - Semantic object + relationship extraction             │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  Object Normalization                                    │
+│  - Map to canonical labels via LLM/embedding             │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  Knowledge Graph Matching                                │
+│  - Match objects to master graph nodes                   │
+│  - Calculate root cause scores                           │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  Root Cause Ranking & Explanation                        │
+│  - Top 5 root causes with evidence                       │
+│  - Typical causal chains                                 │
+│  - Intervention recommendations                          │
+└─────────────────────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  Output                                                  │
+│  - JSON report                                           │
+│  - Visualization (causal graph)                          │
+│  - Dashboard integration                                 │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Summary
+
+The path from relationship extraction to root cause modeling involves:
+
+1. **Aggregate** individual case graphs into a master knowledge graph
+2. **Score** semantic objects based on causal centrality, outcome correlation, and relationship strength
+3. **Match** new cases against historical patterns to identify likely root causes
+4. **Validate** predictions against known outcomes and refine scoring models
+5. **Apply** to retrospective analysis, prospective flagging, or policy guidance use cases
+
+The foundation is already built. The next phase is aggregation and scoring logic.
