@@ -1,1 +1,418 @@
 
+# ============================================================================
+# PTO Accrual Tracker & Projector
+# ============================================================================
+
+library(lubridate)
+library(readr)
+library(ggplot2)
+library(gt)
+library(dplyr)
+
+# --- Configuration -----------------------------------------------------------
+start_date        <- as.Date("2026-01-05")
+hours_per_week    <- 40
+projection_end    <- as.Date("2026-12-31")
+flex_hours        <- 16               # holiday flex days (granted, not accrued)
+
+# Chart window — change this to start the chart wherever you want
+chart_start_date  <- start_date       # e.g. start_date, as.Date("2026-01-01"), etc.
+
+# --- Balance Log (append a row whenever you check your portal) ---------------
+balance_log <- tribble(
+  ~date,         ~balance,  ~note,
+  "2026-01-05",  0,         "start",
+  "2026-04-15",  25.09,     "from portal",
+  "2026-05-20",  35.09,     "from portal"
+)
+balance_log$date <- as.Date(balance_log$date)
+
+anchor            <- balance_log[which.max(balance_log$date), ]
+known_pto_date    <- anchor$date
+known_pto_balance <- anchor$balance
+
+# --- Leave Log ---------------------------------------------------------------
+leave_log <- read_csv(
+  "label,start_date,end_date,hours_used,source
+pickup emily,2026-03-26,2026-03-26,4,pto
+camping,2026-05-08,2026-05-08,8,flex
+mt airy,2026-06-05,2026-05-06,8,flex
+iowa-flex,2026-07-01,2026-07-02,8,pto
+beach trip,2026-07-20,2026-07-24,40,pto
+hoppingjohn,2026-09-17,2026-09-17,0,pto
+christmas,2026-12-20,2026-12-31,40,pto
+",
+  col_types = cols(
+    label      = col_character(),
+    start_date = col_date(),
+    end_date   = col_date(),
+    hours_used = col_double(),
+    source     = col_character()
+  )
+)
+
+# --- Split Past vs Future Leave ----------------------------------------------
+past_leave   <- leave_log[leave_log$start_date <= known_pto_date, ]
+future_leave <- leave_log[leave_log$start_date >  known_pto_date, ]
+
+past_pto_used       <- sum(past_leave$hours_used[past_leave$source == "pto"])
+past_flex_used      <- sum(past_leave$hours_used[past_leave$source == "flex"])
+total_gross_accrued <- known_pto_balance + past_pto_used
+flex_remaining      <- flex_hours - past_flex_used
+
+# --- Calculate Accrual Rate --------------------------------------------------
+weeks_elapsed    <- as.numeric(difftime(known_pto_date, start_date, units = "days")) / 7
+accrual_per_week <- total_gross_accrued / weeks_elapsed
+accrual_per_hour <- accrual_per_week / hours_per_week
+accrual_per_year <- accrual_per_week * 52
+
+# === TABLE 1: Accrual Summary ================================================
+summary_df <- tibble(
+  Metric = c(
+    "Start date",
+    "Weeks elapsed",
+    "Gross PTO accrued",
+    "Past PTO used",
+    "Current PTO balance",
+    "Flex days granted",
+    "Flex days remaining",
+    "Total available now",
+    "Accrual rate (per hour worked)",
+    "Accrual rate (per week)",
+    "Accrual rate (per year)",
+    "Equivalent days/year (PTO only)",
+    "With flex days"
+  ),
+  Value = c(
+    format(start_date),
+    sprintf("%.2f", weeks_elapsed),
+    sprintf("%.2f hrs", total_gross_accrued),
+    sprintf("%.2f hrs", past_pto_used),
+    sprintf("%.2f hrs", known_pto_balance),
+    sprintf("%.2f hrs (%.1f days)", flex_hours, flex_hours / 8),
+    sprintf("%.2f hrs (%.1f days)", flex_remaining, flex_remaining / 8),
+    sprintf("%.2f hrs", known_pto_balance + flex_remaining),
+    sprintf("%.4f hrs", accrual_per_hour),
+    sprintf("%.4f hrs", accrual_per_week),
+    sprintf("%.2f hrs", accrual_per_year),
+    sprintf("%.1f days", accrual_per_year / 8),
+    sprintf("%.1f days", accrual_per_year / 8 + flex_hours / 8)
+  )
+)
+
+gt_summary <- summary_df |>
+  gt() |>
+  tab_header(title = "PTO Accrual Summary") |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  tab_style(
+    style = cell_fill(color = "#EFF6FF"),
+    locations = cells_body(rows = Metric %in% c(
+      "Current PTO balance", "Total available now"
+    ))
+  ) |>
+  cols_width(Metric ~ px(260), Value ~ px(200)) |>
+  opt_table_lines("default")
+
+
+# === TABLE 2: Leave Log ======================================================
+leave_display <- leave_log |>
+  mutate(
+    timing = if_else(start_date <= known_pto_date, "Past", "Future"),
+    dates  = if_else(
+      start_date == end_date,
+      format(start_date, "%b %d"),
+      paste(format(start_date, "%b %d"), "\u2013", format(end_date, "%b %d"))
+    ),
+    days = hours_used / 8
+  ) |>
+  select(timing, label, dates, hours_used, days, source)
+
+gt_leave <- leave_display |>
+  gt(groupname_col = "timing") |>
+  tab_header(title = "Leave Log") |>
+  cols_label(
+    label      = "Label",
+    dates      = "Dates",
+    hours_used = "Hours",
+    days       = "Days",
+    source     = "Source"
+  ) |>
+  fmt_number(columns = c(hours_used, days), decimals = 1) |>
+  summary_rows(
+    groups    = everything(),
+    columns   = c(hours_used, days),
+    fns       = list(Subtotal = ~ sum(.)),
+    fmt       = ~ fmt_number(., decimals = 1)
+  ) |>
+  grand_summary_rows(
+    columns  = c(hours_used, days),
+    fns      = list(Total = ~ sum(.)),
+    fmt      = ~ fmt_number(., decimals = 1)
+  ) |>
+  tab_style(
+    style = cell_text(transform = "uppercase", size = "small", weight = "bold"),
+    locations = cells_row_groups()
+  ) |>
+  tab_style(
+    style = cell_fill(color = "#FEF3C7"),
+    locations = cells_body(rows = source == "flex")
+  ) |>
+  opt_table_lines("default")
+
+
+# --- Forward Projection (for tables, anchored at known balance) --------------
+weeks_to_project <- ceiling(as.numeric(difftime(projection_end, known_pto_date, units = "days")) / 7)
+
+proj <- data.frame(
+  week_ending     = known_pto_date + (0:weeks_to_project) * 7,
+  accrued_this_wk = 0,
+  leave_pto       = 0,
+  leave_flex      = 0,
+  pto_balance     = NA_real_,
+  flex_balance    = NA_real_,
+  total_balance   = NA_real_
+)
+
+proj$accrued_this_wk[1] <- 0
+for (i in 2:nrow(proj)) {
+  proj$accrued_this_wk[i] <- accrual_per_week
+}
+
+if (nrow(future_leave) > 0) {
+  for (i in seq_len(nrow(future_leave))) {
+    leave_week <- which(proj$week_ending >= future_leave$start_date[i])[1]
+    if (!is.na(leave_week)) {
+      if (future_leave$source[i] == "flex") {
+        proj$leave_flex[leave_week] <- proj$leave_flex[leave_week] + future_leave$hours_used[i]
+      } else {
+        proj$leave_pto[leave_week] <- proj$leave_pto[leave_week] + future_leave$hours_used[i]
+      }
+    }
+  }
+}
+
+proj$pto_balance[1]   <- known_pto_balance
+proj$flex_balance[1]  <- flex_remaining
+proj$total_balance[1] <- known_pto_balance + flex_remaining
+
+for (i in 2:nrow(proj)) {
+  proj$pto_balance[i]   <- proj$pto_balance[i - 1] +
+    proj$accrued_this_wk[i] - proj$leave_pto[i]
+  proj$flex_balance[i]  <- proj$flex_balance[i - 1] - proj$leave_flex[i]
+  proj$total_balance[i] <- proj$pto_balance[i] + proj$flex_balance[i]
+}
+
+proj$leave_total <- proj$leave_pto + proj$leave_flex
+
+# === TABLE 3: Weekly Projection ===============================================
+proj_display <- proj |>
+  as_tibble() |>
+  select(week_ending, accrued_this_wk, leave_total, pto_balance, flex_balance, total_balance)
+
+gt_proj <- proj_display |>
+  gt() |>
+  tab_header(
+    title    = "Weekly PTO Projection",
+    subtitle = sprintf("Accruing %.4f hrs/wk through %s", accrual_per_week, projection_end)
+  ) |>
+  cols_label(
+    week_ending     = "Week Ending",
+    accrued_this_wk = "Earned",
+    leave_total     = "Used",
+    pto_balance     = "PTO Bal",
+    flex_balance    = "Flex Bal",
+    total_balance   = "Total"
+  ) |>
+  fmt_date(columns = week_ending, date_style = "yMd") |>
+  fmt_number(columns = c(accrued_this_wk, leave_total, pto_balance, flex_balance, total_balance),
+             decimals = 2) |>
+  tab_style(
+    style = list(cell_fill(color = "#FEE2E2"), cell_text(weight = "bold")),
+    locations = cells_body(rows = leave_total > 0)
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  data_color(
+    columns  = total_balance,
+    palette  = c("#DC2626", "#FBBF24", "#2563EB"),
+    domain   = c(0, max(proj$total_balance, na.rm = TRUE))
+  ) |>
+  opt_table_lines("default") |>
+  opt_interactive(use_pagination = TRUE, page_size_default = 15)
+
+
+# === TABLE 4: Year-End Summary ================================================
+year_end           <- proj[nrow(proj), ]
+future_leave_total <- sum(future_leave$hours_used)
+total_leave        <- sum(leave_log$hours_used)
+gross_by_eoy       <- total_gross_accrued + accrual_per_week * (nrow(proj) - 1)
+
+yearend_df <- tibble(
+  Metric = c(
+    "Gross PTO accrued by year-end",
+    "Flex days (annual grant)",
+    "Total leave taken / planned",
+    "Projected PTO balance",
+    "Projected flex balance",
+    "Projected total balance"
+  ),
+  Hours = c(
+    gross_by_eoy,
+    flex_hours,
+    total_leave,
+    year_end$pto_balance,
+    year_end$flex_balance,
+    year_end$total_balance
+  ),
+  Days = c(
+    gross_by_eoy / 8,
+    flex_hours / 8,
+    total_leave / 8,
+    year_end$pto_balance / 8,
+    year_end$flex_balance / 8,
+    year_end$total_balance / 8
+  )
+)
+
+gt_yearend <- yearend_df |>
+  gt() |>
+  tab_header(title = "Year-End Summary") |>
+  fmt_number(columns = Hours, decimals = 2) |>
+  fmt_number(columns = Days, decimals = 1) |>
+  tab_style(
+    style = list(cell_fill(color = "#DBEAFE"), cell_text(weight = "bold")),
+    locations = cells_body(rows = Metric == "Projected total balance")
+  ) |>
+  tab_style(
+    style = cell_fill(color = "#FEE2E2"),
+    locations = cells_body(rows = Metric == "Total leave taken / planned")
+  ) |>
+  cols_width(Metric ~ px(280)) |>
+  opt_table_lines("default")
+
+
+# === Chart Data (simulated forward from chart_start_date) ====================
+# Built separately from the table so the chart can start earlier than
+# known_pto_date. Forward-simulates from chart_start_date using the
+# back-calculated accrual rate.
+
+total_chart_weeks <- ceiling(as.numeric(difftime(projection_end, chart_start_date, units = "days")) / 7)
+
+chart_data <- data.frame(
+  week_ending     = chart_start_date + (0:total_chart_weeks) * 7,
+  accrued_this_wk = accrual_per_week,
+  leave_pto       = 0,
+  leave_flex      = 0,
+  pto_balance     = NA_real_,
+  flex_balance    = NA_real_,
+  total_balance   = NA_real_
+)
+chart_data$accrued_this_wk[1] <- 0  # no accrual at the initial snapshot
+
+# Apply ALL leave (past + future) to the weeks they fall in
+for (i in seq_len(nrow(leave_log))) {
+  leave_week <- which(chart_data$week_ending >= leave_log$start_date[i])[1]
+  if (!is.na(leave_week)) {
+    if (leave_log$source[i] == "flex") {
+      chart_data$leave_flex[leave_week] <- chart_data$leave_flex[leave_week] + leave_log$hours_used[i]
+    } else {
+      chart_data$leave_pto[leave_week]  <- chart_data$leave_pto[leave_week]  + leave_log$hours_used[i]
+    }
+  }
+}
+
+# Initial balances at chart_start_date (assumes chart_start_date >= start_date)
+chart_data$pto_balance[1]   <- 0
+chart_data$flex_balance[1]  <- flex_hours
+chart_data$total_balance[1] <- flex_hours
+
+for (i in 2:nrow(chart_data)) {
+  chart_data$pto_balance[i]   <- chart_data$pto_balance[i - 1] +
+    chart_data$accrued_this_wk[i] - chart_data$leave_pto[i]
+  chart_data$flex_balance[i]  <- chart_data$flex_balance[i - 1] - chart_data$leave_flex[i]
+  chart_data$total_balance[i] <- chart_data$pto_balance[i] + chart_data$flex_balance[i]
+}
+
+chart_data$leave_total    <- chart_data$leave_pto + chart_data$leave_flex
+chart_data$total_no_leave <- flex_hours + cumsum(chart_data$accrued_this_wk)
+
+# === Annotated Line Chart =====================================================
+annotations <- chart_data[chart_data$leave_total > 0, ]
+
+# Match ALL leave entries (past + future) to annotation rows
+annotations$label <- NA_character_
+for (i in seq_len(nrow(leave_log))) {
+  match_row <- which(annotations$week_ending ==
+                       chart_data$week_ending[which(chart_data$week_ending >= leave_log$start_date[i])[1]])
+  if (length(match_row) > 0) {
+    existing  <- annotations$label[match_row]
+    src_tag   <- ifelse(leave_log$source[i] == "flex", " [flex]", "")
+    new_label <- paste0(leave_log$label[i], "\n-",
+                        leave_log$hours_used[i], " hrs", src_tag)
+    annotations$label[match_row] <- ifelse(
+      is.na(existing), new_label, paste0(existing, "\n", new_label)
+    )
+  }
+}
+
+annotations$nudge <- seq(from = 6, by = 2, length.out = nrow(annotations))
+if (nrow(annotations) >= 2) {
+  annotations$nudge[seq(2, nrow(annotations), by = 2)] <-
+    -annotations$nudge[seq(2, nrow(annotations), by = 2)]
+}
+
+p <- ggplot(chart_data, aes(x = week_ending)) +
+  geom_line(aes(y = total_no_leave),
+            linetype = "dashed", color = "grey60", linewidth = 0.5) +
+  geom_line(aes(y = total_balance),
+            color = "#2563EB", linewidth = 1) +
+  geom_point(aes(y = total_balance),
+             color = "#2563EB", size = 1, alpha = 0.4) +
+  geom_area(aes(y = flex_balance),
+            fill = "#F59E0B", alpha = 0.15) +
+  geom_line(aes(y = flex_balance),
+            color = "#F59E0B", linewidth = 0.6, linetype = "dotted") +
+  geom_point(data = annotations,
+             aes(y = total_balance),
+             color = "#DC2626", size = 3) +
+  geom_label(data = annotations,
+             aes(y = total_balance, label = label),
+             size = 3, color = "#DC2626", fill = "white",
+             label.padding = unit(0.2, "lines"),
+             label.size = 0.3,
+             nudge_y = annotations$nudge,
+             lineheight = 0.85) +
+  geom_vline(xintercept = Sys.Date(), linetype = "dotted", color = "grey40") +
+  annotate("text", x = Sys.Date(), y = max(chart_data$total_no_leave) * 0.97,
+           label = "Today", hjust = 1.1, size = 3, color = "grey40") +
+  geom_hline(yintercept = 0, color = "black") +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  scale_y_continuous(
+    sec.axis = sec_axis(~ . / 8, name = "Days")
+  ) +
+  labs(
+    title    = "PTO Balance Projection",
+    subtitle = sprintf("Accruing %.2f hrs/wk  |  %.1f days/yr PTO + %.1f flex days",
+                       accrual_per_week, accrual_per_year / 8, flex_hours / 8),
+    x = NULL,
+    y = "Hours",
+    caption = "Blue = total balance  |  Gold shading = flex pool  |  Dashed = no-leave baseline"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title    = element_text(face = "bold"),
+    plot.subtitle = element_text(color = "grey40"),
+    plot.caption  = element_text(color = "grey50", size = 9),
+    panel.grid.minor = element_blank()
+  )
+
+print(gt_summary)
+print(gt_leave)
+print(gt_proj)
+print(gt_yearend)
+print(p)
