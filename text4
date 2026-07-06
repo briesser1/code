@@ -1,1 +1,420 @@
 
+-- ============================================================================
+-- AFCARS 2020 Out-of-Home Care XML -> Snowflake Relational Tables
+-- Runs entirely in the Snowflake web console (Snowsight)
+--
+-- Hierarchy per Technical Bulletin #21 (XML File Structure & Encryption):
+--   <acf:data>
+--     E1 (title IV-E agency), E2 (report period)
+--     <records>
+--       <record>  (one per child)
+--         scalar elements (E3-E68, E106-E111 ranges)
+--         tribal_information group        (E7-E12,  repeating)
+--         specific health conditions group (E24-E34)
+--         prior adoption group             (E42-E43)
+--         financial assistance group       (E47-E54, repeating)
+--         siblings in foster care group    (E57-E58, repeating)
+--         termination of parental rights   (E63-E68, repeating)
+--         prior sex trafficking group      (E107-E108)
+--         removal episode group            (E69-E105, E112-E186, REPEATING)
+--           foster parent information      (E125-E135, repeating in episode)
+--           permanency plan                (E147-E148, repeating in episode)
+--           case worker visit              (E151-E152, repeating in episode)
+--           adoptive parent information    (E157-E186, repeating in episode)
+--
+-- IMPORTANT: Exact XML tag names come from TB21 Appendix C / the XSD
+-- (schema for the OOH file). This script DISCOVERS tag names from your
+-- actual file (Section 3) and GENERATES the column lists for you
+-- (Section 4), so nothing is hard-coded on guesswork.
+--
+-- KEY SNOWFLAKE XML FACTS (this is where naive approaches fail):
+--   * Parsed XML is a VARIANT OBJECT: '@' = tag name, '$' = content.
+--     For a container element, '$' is an ARRAY of child objects.
+--     For a leaf element, '$' is the text/number value.
+--   * FLATTEN(PATH => 'a.b') does NOT work on XML the way it does on
+--     JSON. You must FLATTEN(input => x:"$") and filter GET(value,'@').
+--   * XMLGET(x, 'tag') returns the FIRST matching child. Fine for
+--     singletons; for repeating groups use the flatten+filter pattern.
+--   * VARIANT row limit: 16MB classic, 128MB if your account has the
+--     increased max object size enabled. A whole state OOH file will
+--     usually NOT fit as one row -> see Section 1 loading tiers.
+-- ============================================================================
+
+
+-- ============================================================================
+-- SECTION 0: Environment
+-- ============================================================================
+-- Pick your database/schema first, e.g.:
+-- USE DATABASE MY_DB; USE SCHEMA AFCARS;
+
+CREATE STAGE IF NOT EXISTS AFCARS_XML_STAGE;
+
+-- Upload the file in Snowsight:
+--   Data > Databases > (your schema) > Stages > AFCARS_XML_STAGE > + Files
+-- Then confirm:
+LIST @AFCARS_XML_STAGE;
+
+-- Helper UDF: extract text of a singleton child element
+CREATE OR REPLACE FUNCTION XVAL(X VARIANT, TAG VARCHAR)
+RETURNS VARCHAR
+AS
+$$
+  GET(XMLGET(X, TAG), '$')::VARCHAR
+$$;
+
+
+-- ============================================================================
+-- SECTION 1: Load raw XML  (three tiers by file size)
+-- ============================================================================
+
+CREATE OR REPLACE TABLE RAW_OOH_XML (
+  SRC_FILENAME  VARCHAR,
+  LOAD_TS       TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+  X             VARIANT        -- one XML fragment per row
+);
+
+-- ---------------------------------------------------------------------------
+-- TIER A: file fits in one VARIANT row (small test files)
+-- ---------------------------------------------------------------------------
+-- COPY INTO RAW_OOH_XML (SRC_FILENAME, X)
+-- FROM (SELECT METADATA$FILENAME, $1 FROM @AFCARS_XML_STAGE)
+-- FILE_FORMAT = (TYPE = XML STRIP_OUTER_ELEMENT = FALSE);
+
+-- ---------------------------------------------------------------------------
+-- TIER B (most common): strip the <acf:data> root so each direct child
+-- becomes its own row (E1 row, E2 row, and the <records> row or, if your
+-- state omits the wrapper, one row per <record>).
+-- ---------------------------------------------------------------------------
+COPY INTO RAW_OOH_XML (SRC_FILENAME, X)
+FROM (SELECT METADATA$FILENAME, $1 FROM @AFCARS_XML_STAGE)
+FILE_FORMAT = (TYPE = XML STRIP_OUTER_ELEMENT = TRUE)
+ON_ERROR = 'ABORT_STATEMENT';
+
+-- See what landed (expect tags like: E1_..., E2_..., records / record)
+SELECT GET(X, '@')::VARCHAR AS TAG, COUNT(*) AS N
+FROM RAW_OOH_XML
+GROUP BY 1;
+
+-- ---------------------------------------------------------------------------
+-- TIER C: the <records> blob alone exceeds the VARIANT limit (COPY fails
+-- with a size error). Split the file with a Python worksheet -- still
+-- 100% inside the Snowflake web console. Open a new PYTHON worksheet,
+-- paste this, set the packages to 'snowflake-snowpark-python', and run.
+-- It streams the staged file (never loads it all into memory) and writes
+-- one <record> per row into RAW_OOH_RECORDS_TXT.
+-- ---------------------------------------------------------------------------
+/*
+import xml.etree.ElementTree as ET
+from snowflake.snowpark.files import SnowflakeFile
+from snowflake.snowpark import Session
+
+def main(session: Session):
+    session.sql("""
+        CREATE OR REPLACE TABLE RAW_OOH_RECORDS_TXT (
+            REC_SEQ INTEGER, REC_XML VARCHAR
+        )
+    """).collect()
+
+    url = session.sql(
+        "SELECT BUILD_SCOPED_FILE_URL(@AFCARS_XML_STAGE, 'your_file.xml')"
+    ).collect()[0][0]
+
+    batch, seq, BATCH_SIZE = [], 0, 500
+    with SnowflakeFile.open(url, 'rb', require_scoped_url=True) as f:
+        for event, elem in ET.iterparse(f, events=('end',)):
+            # local-name match: handles any namespace on <record>
+            if elem.tag.split('}')[-1] == 'record':
+                seq += 1
+                batch.append((seq, ET.tostring(elem, encoding='unicode')))
+                elem.clear()            # critical: keeps memory flat
+                if len(batch) >= BATCH_SIZE:
+                    session.create_dataframe(
+                        batch, schema=['REC_SEQ', 'REC_XML']
+                    ).write.mode('append').save_as_table('RAW_OOH_RECORDS_TXT')
+                    batch = []
+    if batch:
+        session.create_dataframe(
+            batch, schema=['REC_SEQ', 'REC_XML']
+        ).write.mode('append').save_as_table('RAW_OOH_RECORDS_TXT')
+    return f'{seq} records written'
+*/
+-- Then parse to VARIANT:
+-- CREATE OR REPLACE TABLE OOH_CHILD_RAW AS
+-- SELECT 'your_file.xml' AS SRC_FILENAME,
+--        REC_SEQ         AS CHILD_SEQ,
+--        PARSE_XML(REC_XML) AS CHILD_XML
+-- FROM RAW_OOH_RECORDS_TXT;
+-- (If you used Tier C, skip Section 2 and go straight to Section 3.)
+
+
+-- ============================================================================
+-- SECTION 2: Normalize to one row per <record>   (Tier A/B paths)
+-- Handles BOTH shapes: <records> wrapper present, or <record> rows direct.
+-- ============================================================================
+
+CREATE OR REPLACE TABLE OOH_CHILD_RAW AS
+-- shape 1: rows already ARE individual <record> elements
+SELECT
+  SRC_FILENAME,
+  ROW_NUMBER() OVER (PARTITION BY SRC_FILENAME ORDER BY SEQ8()) AS CHILD_SEQ,
+  X AS CHILD_XML
+FROM RAW_OOH_XML
+WHERE GET(X, '@')::VARCHAR ILIKE '%record'
+  AND GET(X, '@')::VARCHAR NOT ILIKE '%records'
+
+UNION ALL
+
+-- shape 2: one <records> wrapper row -> flatten its '$' array
+SELECT
+  R.SRC_FILENAME,
+  F.INDEX + 1 AS CHILD_SEQ,
+  F.VALUE     AS CHILD_XML
+FROM RAW_OOH_XML R,
+LATERAL FLATTEN(INPUT => R.X:"$") F
+WHERE GET(R.X, '@')::VARCHAR ILIKE '%records'
+  AND IS_OBJECT(F.VALUE)
+  AND GET(F.VALUE, '@')::VARCHAR ILIKE '%record';
+
+SELECT COUNT(*) AS CHILD_RECORDS FROM OOH_CHILD_RAW;   -- sanity check
+
+-- File header (E1 / E2 rows left over from the strip)
+CREATE OR REPLACE TABLE OOH_FILE_HEADER AS
+SELECT
+  SRC_FILENAME,
+  MAX(IFF(GET(X,'@')::VARCHAR ILIKE 'E1%', GET(X,'$')::VARCHAR, NULL)) AS E1_TITLE_IVE_AGENCY,
+  MAX(IFF(GET(X,'@')::VARCHAR ILIKE 'E2%', GET(X,'$')::VARCHAR, NULL)) AS E2_REPORT_PERIOD
+FROM RAW_OOH_XML
+GROUP BY 1;
+
+
+-- ============================================================================
+-- SECTION 3: DISCOVER the schema from YOUR file (don't trust guessed tags)
+-- ============================================================================
+
+-- 3a. Every direct child tag of <record>, classified scalar vs repeating.
+--     MAX_PER_RECORD > 1  ->  repeating group -> gets its own table.
+CREATE OR REPLACE TEMPORARY TABLE TAG_PROFILE AS
+WITH T AS (
+  SELECT C.CHILD_SEQ,
+         GET(F.VALUE, '@')::VARCHAR AS TAG,
+         IS_ARRAY(GET(F.VALUE, '$')) AS HAS_CHILDREN
+  FROM OOH_CHILD_RAW C,
+  LATERAL FLATTEN(INPUT => C.CHILD_XML:"$") F
+  WHERE IS_OBJECT(F.VALUE)
+)
+SELECT TAG,
+       COUNT(*)                                   AS TOTAL_OCCURRENCES,
+       COUNT(DISTINCT CHILD_SEQ)                  AS RECORDS_PRESENT,
+       MAX(CNT_PER_REC)                           AS MAX_PER_RECORD,
+       MAX(HAS_CHILDREN::INT)::BOOLEAN            AS IS_GROUP_ELEMENT
+FROM (
+  SELECT CHILD_SEQ, TAG, HAS_CHILDREN,
+         COUNT(*) OVER (PARTITION BY CHILD_SEQ, TAG) AS CNT_PER_REC
+  FROM T
+)
+GROUP BY TAG
+ORDER BY TAG;
+
+SELECT * FROM TAG_PROFILE;
+
+-- 3b. Drill into any group element to see ITS child tags
+--     (swap 'removal_episode' for the actual group tag from 3a):
+-- WITH G AS (
+--   SELECT F.VALUE AS GRP
+--   FROM OOH_CHILD_RAW C, LATERAL FLATTEN(INPUT => C.CHILD_XML:"$") F
+--   WHERE GET(F.VALUE,'@')::VARCHAR = 'removal_episode'
+-- )
+-- SELECT GET(F2.VALUE,'@')::VARCHAR AS TAG, COUNT(*) N,
+--        MAX(IS_ARRAY(GET(F2.VALUE,'$'))::INT)::BOOLEAN AS IS_GROUP
+-- FROM G, LATERAL FLATTEN(INPUT => GRP:"$") F2
+-- WHERE IS_OBJECT(F2.VALUE)
+-- GROUP BY 1 ORDER BY 1;
+
+
+-- ============================================================================
+-- SECTION 4: CODE GENERATION -- write the SELECT lists for you
+-- ============================================================================
+
+-- 4a. Column list for the CHILD table (scalar, non-group tags only).
+--     Run, copy the single output cell, paste into Section 5a.
+SELECT LISTAGG(
+         '  XVAL(CHILD_XML, ''' || TAG || ''') AS ' || UPPER(TAG),
+         ',\n'
+       ) WITHIN GROUP (ORDER BY TAG) AS CHILD_SELECT_LIST
+FROM TAG_PROFILE
+WHERE MAX_PER_RECORD = 1 AND NOT IS_GROUP_ELEMENT;
+
+-- 4b. Column list generator for any GROUP table. First materialize a sample
+--     of that group's children, then LISTAGG the same way:
+-- WITH G AS (
+--   SELECT F.VALUE AS GRP
+--   FROM OOH_CHILD_RAW C, LATERAL FLATTEN(INPUT => C.CHILD_XML:"$") F
+--   WHERE GET(F.VALUE,'@')::VARCHAR = '<GROUP_TAG_HERE>'
+-- ),
+-- TAGS AS (
+--   SELECT DISTINCT GET(F2.VALUE,'@')::VARCHAR AS TAG
+--   FROM G, LATERAL FLATTEN(INPUT => GRP:"$") F2
+--   WHERE IS_OBJECT(F2.VALUE) AND NOT IS_ARRAY(GET(F2.VALUE,'$'))
+-- )
+-- SELECT LISTAGG('  XVAL(GRP_XML, ''' || TAG || ''') AS ' || UPPER(TAG), ',\n')
+--        WITHIN GROUP (ORDER BY TAG)
+-- FROM TAGS;
+
+
+-- ============================================================================
+-- SECTION 5: Build the relational tables
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 5a. OOH_CHILD -- one row per child; all scalar elements
+--     Paste the generated column list from 4a where indicated.
+--     E3 (encrypted record number) is the natural key; CHILD_SEQ is the
+--     surrogate used to join every table below.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE TABLE OOH_CHILD AS
+SELECT
+  SRC_FILENAME,
+  CHILD_SEQ,
+  ----  >>> PASTE GENERATED COLUMN LIST FROM 4a HERE <<<  ----
+  -- e.g. (verify tags against YOUR file / the XSD):
+  -- XVAL(CHILD_XML, 'E3_record_number')  AS E3_RECORD_NUMBER,
+  -- XVAL(CHILD_XML, 'E4_date_of_birth')  AS E4_DATE_OF_BIRTH,
+  -- ...
+  CHILD_XML          -- keep raw; drop later if you want
+FROM OOH_CHILD_RAW;
+
+-- Typed view on top (adjust to real names; TRY_ casts never hard-fail):
+-- CREATE OR REPLACE VIEW OOH_CHILD_TYPED AS
+-- SELECT SRC_FILENAME, CHILD_SEQ,
+--        E3_RECORD_NUMBER,
+--        TRY_TO_DATE(E4_DATE_OF_BIRTH)  AS DOB,
+--        TRY_TO_NUMBER(E59_TOTAL_REMOVALS) AS TOTAL_REMOVALS,
+--        ...
+-- FROM OOH_CHILD;
+
+-- ---------------------------------------------------------------------------
+-- 5b. GENERIC child-level repeating-group template
+--     Works for: tribal_information (E7-E12), financial assistance (E47-E54),
+--     siblings in foster care (E57-E58), TPR (E63-E68), health conditions
+--     (E24-E34), prior adoption (E42-E43), prior sex trafficking (E107-E108).
+--     Replace <GROUP_TAG> with the tag from TAG_PROFILE, paste columns
+--     from generator 4b, rename the table.
+-- ---------------------------------------------------------------------------
+-- CREATE OR REPLACE TABLE OOH_<GROUP_NAME> AS
+-- WITH G AS (
+--   SELECT C.SRC_FILENAME, C.CHILD_SEQ,
+--          F.VALUE AS GRP_XML,
+--          ROW_NUMBER() OVER (PARTITION BY C.CHILD_SEQ ORDER BY F.INDEX) AS GRP_SEQ
+--   FROM OOH_CHILD_RAW C,
+--   LATERAL FLATTEN(INPUT => C.CHILD_XML:"$") F
+--   WHERE GET(F.VALUE, '@')::VARCHAR = '<GROUP_TAG>'
+-- )
+-- SELECT SRC_FILENAME, CHILD_SEQ, GRP_SEQ,
+--   ----  >>> PASTE GENERATED COLUMN LIST FROM 4b HERE <<<  ----
+-- FROM G;
+
+-- Concrete example -- tribal information:
+CREATE OR REPLACE TABLE OOH_TRIBAL_INFO AS
+WITH G AS (
+  SELECT C.SRC_FILENAME, C.CHILD_SEQ,
+         F.VALUE AS GRP_XML,
+         ROW_NUMBER() OVER (PARTITION BY C.CHILD_SEQ ORDER BY F.INDEX) AS GRP_SEQ
+  FROM OOH_CHILD_RAW C,
+  LATERAL FLATTEN(INPUT => C.CHILD_XML:"$") F
+  WHERE GET(F.VALUE, '@')::VARCHAR ILIKE '%tribal%'   -- pin exact tag from 3a
+)
+SELECT SRC_FILENAME, CHILD_SEQ, GRP_SEQ,
+  ----  >>> columns from generator 4b for the tribal group <<<  ----
+  GRP_XML
+FROM G;
+
+-- ---------------------------------------------------------------------------
+-- 5c. OOH_REMOVAL_EPISODE -- one row per removal episode per child
+--     Scalar episode elements here; nested repeating groups in 5d.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE TABLE OOH_REMOVAL_EPISODE AS
+WITH E AS (
+  SELECT C.SRC_FILENAME, C.CHILD_SEQ,
+         F.VALUE AS EP_XML,
+         ROW_NUMBER() OVER (PARTITION BY C.CHILD_SEQ ORDER BY F.INDEX) AS EP_SEQ
+  FROM OOH_CHILD_RAW C,
+  LATERAL FLATTEN(INPUT => C.CHILD_XML:"$") F
+  WHERE GET(F.VALUE, '@')::VARCHAR ILIKE '%removal%episode%'  -- pin from 3a
+)
+SELECT SRC_FILENAME, CHILD_SEQ, EP_SEQ,
+  ----  >>> scalar episode columns from generator 4b <<<  ----
+  -- e.g. XVAL(EP_XML, 'E69_...') AS E69_REMOVAL_NUMBER, ...
+  EP_XML               -- keep: 5d flattens from this table
+FROM E;
+
+-- ---------------------------------------------------------------------------
+-- 5d. GENERIC episode-level repeating-group template
+--     Works for: foster parent info (E125-E135), permanency plan
+--     (E147-E148), caseworker visit (E151-E152), adoptive parent info
+--     (E157-E186). Replace <GROUP_TAG>, rename, paste columns.
+--     NOTE: adoptive parent info contains nested singleton groups
+--     (first ~E162-E172 / second ~E173-E183). Singletons don't need
+--     another flatten -- reach in with chained XMLGET:
+--       XVAL(XMLGET(GRP_XML, '<first_parent_tag>'), '<leaf_tag>')
+-- ---------------------------------------------------------------------------
+-- CREATE OR REPLACE TABLE OOH_<GROUP_NAME> AS
+-- WITH G AS (
+--   SELECT E.SRC_FILENAME, E.CHILD_SEQ, E.EP_SEQ,
+--          F.VALUE AS GRP_XML,
+--          ROW_NUMBER() OVER (PARTITION BY E.CHILD_SEQ, E.EP_SEQ
+--                             ORDER BY F.INDEX) AS GRP_SEQ
+--   FROM OOH_REMOVAL_EPISODE E,
+--   LATERAL FLATTEN(INPUT => E.EP_XML:"$") F
+--   WHERE GET(F.VALUE, '@')::VARCHAR = '<GROUP_TAG>'
+-- )
+-- SELECT SRC_FILENAME, CHILD_SEQ, EP_SEQ, GRP_SEQ,
+--   ----  >>> columns from generator 4b <<<  ----
+-- FROM G;
+
+-- Concrete example -- caseworker visits:
+CREATE OR REPLACE TABLE OOH_CASEWORKER_VISIT AS
+WITH G AS (
+  SELECT E.SRC_FILENAME, E.CHILD_SEQ, E.EP_SEQ,
+         F.VALUE AS GRP_XML,
+         ROW_NUMBER() OVER (PARTITION BY E.CHILD_SEQ, E.EP_SEQ
+                            ORDER BY F.INDEX) AS GRP_SEQ
+  FROM OOH_REMOVAL_EPISODE E,
+  LATERAL FLATTEN(INPUT => E.EP_XML:"$") F
+  WHERE GET(F.VALUE, '@')::VARCHAR ILIKE '%case%worker%visit%'  -- pin from 3b
+)
+SELECT SRC_FILENAME, CHILD_SEQ, EP_SEQ, GRP_SEQ,
+  ----  >>> e.g. XVAL(GRP_XML,'E151_...') AS VISIT_DATE, ... <<<  ----
+  GRP_XML
+FROM G;
+
+
+-- ============================================================================
+-- SECTION 6: Reconciliation -- prove nothing was dropped
+-- ============================================================================
+
+-- 6a. Row counts across the model
+SELECT 'OOH_FILE_HEADER'    AS TBL, COUNT(*) AS N FROM OOH_FILE_HEADER
+UNION ALL SELECT 'OOH_CHILD',            COUNT(*) FROM OOH_CHILD
+UNION ALL SELECT 'OOH_TRIBAL_INFO',      COUNT(*) FROM OOH_TRIBAL_INFO
+UNION ALL SELECT 'OOH_REMOVAL_EPISODE',  COUNT(*) FROM OOH_REMOVAL_EPISODE
+UNION ALL SELECT 'OOH_CASEWORKER_VISIT', COUNT(*) FROM OOH_CASEWORKER_VISIT
+ORDER BY 1;
+
+-- 6b. Episode counts in the flattened table vs. what the XML says
+--     (compare against E59 total removals element once you know its tag)
+SELECT CHILD_SEQ, COUNT(*) AS EPISODES_FLATTENED
+FROM OOH_REMOVAL_EPISODE
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 20;
+
+-- 6c. Group tags in the raw XML with NO corresponding table yet
+--     (your to-do list: every row here needs a 5b/5d table)
+SELECT TAG, MAX_PER_RECORD, RECORDS_PRESENT
+FROM TAG_PROFILE
+WHERE IS_GROUP_ELEMENT
+ORDER BY TAG;
+
+-- 6d. Duplicate-key check on the natural key (E3), once extracted
+-- SELECT E3_RECORD_NUMBER, COUNT(*)
+-- FROM OOH_CHILD GROUP BY 1 HAVING COUNT(*) > 1;
